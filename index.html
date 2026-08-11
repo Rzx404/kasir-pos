@@ -5,7 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>POS Pro - Sistem Kasir & Manajemen Stok</title>
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com">
+    // Always return to the GitHub Pages project URL after logout.
+    async function signOutToApp() {
+        try {
+            if (window.Clerk && typeof window.Clerk.signOut === 'function') {
+                await window.Clerk.signOut({ redirectUrl: APP_URL });
+            } else {
+                window.location.replace(APP_URL);
+            }
+        } catch (error) {
+            console.error('Clerk sign out failed:', error);
+            window.location.replace(APP_URL);
+        }
+    }
+</script>
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
@@ -17,6 +31,24 @@
     <!-- Clerk Authentication -->
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_ZnVua3kybW9zcXVpdG8tNC5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
     <script>
+    // GitHub Pages project-site URL. Keep all Clerk redirects on this path.
+    const APP_URL = 'https://rzx404.github.io/kasir-pos/';
+    // GitHub Pages is serving a single-page app. Normalize accidental Clerk
+    // redirects to nested routes back to the project entry point.
+    (function normalizeGitHubPagesRoute() {
+        const expectedOrigin = 'https://rzx404.github.io';
+        const expectedPath = '/kasir-pos/';
+        if (location.origin === expectedOrigin && location.pathname !== expectedPath) {
+            const looksLikeAppRoute =
+                location.pathname === '/kasir-pos' ||
+                location.pathname.startsWith('/kasir-pos/');
+            if (looksLikeAppRoute) {
+                history.replaceState({}, '', APP_URL + location.search + location.hash);
+            }
+        }
+    })();
+
+
         tailwind.config = {
             theme: {
                 extend: {
@@ -158,7 +190,7 @@
     </div>
 
     <script>
-        const APP_URL = 'https://rzx404.github.io/kasir-pos/';
+
         let clerkReady = false;
 
         async function initClerkAuth() {
