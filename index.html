@@ -3,12 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KasirKu POS Pro</title>
-    <meta name="theme-color" content="#0f172a">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="KasirKu POS Pro">
+    <title>POS Pro - Sistem Kasir & Manajemen Stok</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome Icons -->
@@ -19,6 +14,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Supabase JS Client CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Clerk Authentication -->
+    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_ZnVua3kybW9zcXVpdG8tNC5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -143,9 +140,81 @@
             }
         }
     </style>
-    <!-- PWA manifest is generated at runtime so this project can remain a single HTML file. -->
 </head>
-<body class="bg-slate-100 font-sans text-slate-800 antialiased min-h-screen flex flex-col"><!-- Top Header -->
+<body class="bg-slate-100 font-sans text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- AUTH GATE: POS tidak dapat diakses sebelum login Clerk -->
+    <div id="auth-gate" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-4">
+        <div class="w-full max-w-md">
+            <div class="text-center text-white mb-5">
+                <div class="inline-flex w-14 h-14 items-center justify-center rounded-2xl bg-sky-500 shadow-lg shadow-sky-500/20 mb-3">
+                    <i class="fa-solid fa-cash-register text-2xl"></i>
+                </div>
+                <h1 class="text-2xl font-extrabold">KasirKu <span class="text-sky-400">POS Pro</span></h1>
+                <p id="auth-status" class="text-sm text-slate-400 mt-1">Memuat sistem login...</p>
+            </div>
+            <div id="clerk-sign-in" class="bg-white rounded-2xl shadow-2xl overflow-hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        const APP_URL = 'https://rzx404.github.io/kasir-pos/';
+        let clerkReady = false;
+
+        async function initClerkAuth() {
+            const gate = document.getElementById('auth-gate');
+            const signIn = document.getElementById('clerk-sign-in');
+            const status = document.getElementById('auth-status');
+
+            try {
+                // Clerk script menggunakan async, jadi tunggu sampai object Clerk tersedia.
+                for (let i = 0; i < 100 && !window.Clerk; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                if (!window.Clerk) {
+                    status.textContent = 'Gagal memuat Clerk. Periksa koneksi internet.';
+                    return;
+                }
+
+                await window.Clerk.load();
+                clerkReady = true;
+
+                if (window.Clerk.user) {
+                    gate.classList.add('hidden');
+                    window.currentClerkUser = window.Clerk.user;
+                    if (typeof window.mountClerkUserButton === 'function') window.mountClerkUserButton();
+                    return;
+                }
+
+                status.textContent = 'Silakan login untuk masuk ke POS.';
+                await window.Clerk.mountSignIn(signIn, {
+                    afterSignInUrl: APP_URL,
+                    afterSignUpUrl: APP_URL,
+                    fallbackRedirectUrl: APP_URL
+                });
+
+                window.Clerk.addListener(({ user }) => {
+                    if (user) {
+                        window.currentClerkUser = user;
+                        window.location.replace(APP_URL);
+                    }
+                });
+            } catch (error) {
+                console.error('Clerk initialization error:', error);
+                status.textContent = 'Login gagal dimuat. Silakan refresh halaman.';
+                signIn.innerHTML = '<div class="p-6 text-center text-sm text-rose-600">Terjadi masalah saat memuat login Clerk.</div>';
+            }
+        }
+
+        function logoutClerk() {
+            if (window.Clerk) window.Clerk.signOut({ redirectUrl: APP_URL });
+        }
+
+        window.addEventListener('load', initClerkAuth);
+    </script>
+
+    <!-- Top Header -->
     <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
@@ -183,8 +252,8 @@
                         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" id="supabase-status-dot"></span>
                         <span id="supabase-status-text">Supabase: Aktif</span>
                     </div>
-                    <button id="install-app-btn" onclick="installPWA()" title="Install Aplikasi" class="hidden text-slate-400 hover:text-brand-400 p-2 rounded-lg hover:bg-slate-800 transition">
-                        <i class="fa-solid fa-download"></i>
+                    <button onclick="logoutClerk()" title="Keluar" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg hover:bg-slate-800 transition">
+                        <i class="fa-solid fa-right-from-bracket"></i>
                     </button>
                     <button onclick="confirmResetDemoData()" title="Reset Data Sample" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg hover:bg-slate-800 transition">
                         <i class="fa-solid fa-rotate-left"></i>
@@ -306,14 +375,10 @@
                     <p class="text-xs text-slate-500">Kelola katalog barang, pantau sisa stok, dan perbarui harga penjualan.</p>
                 </div>
                 <div class="flex items-center space-x-3 w-full sm:w-auto">
-                    <div class="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
-                        <button onclick="openStockAdjustmentModal()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
-                            <i class="fa-solid fa-boxes-packing"></i><span>Kelola Stok</span>
-                        </button>
-                        <button onclick="openAddProductModal()" class="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
-                            <i class="fa-solid fa-plus"></i><span>Tambah Produk</span>
-                        </button>
-                    </div>
+                    <button onclick="openAddProductModal()" class="w-full sm:w-auto px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Tambah Produk Baru</span>
+                    </button>
                 </div>
             </div>
 
@@ -612,45 +677,6 @@
         </div>
     </div>
 
-
-    <!-- MODAL: STOCK ADJUSTMENT -->
-    <div id="modal-stock-adjustment" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
-            <div class="px-6 py-4 bg-emerald-600 text-white flex items-center justify-between">
-                <div><h3 class="font-bold text-base">Kelola Stok</h3><p class="text-[11px] text-emerald-100">Tambah atau kurangi stok secara manual.</p></div>
-                <button onclick="closeStockAdjustmentModal()" class="text-emerald-100 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
-            </div>
-            <form onsubmit="saveStockAdjustment(event)" class="p-6 space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Produk *</label>
-                    <select id="stock-adjust-product" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"></select>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div><label class="block text-xs font-semibold text-slate-700 mb-1">Jenis</label>
-                        <select id="stock-adjust-type" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"><option value="add">Tambah Stok (+)</option><option value="subtract">Kurangi Stok (-)</option><option value="set">Atur Stok</option></select>
-                    </div>
-                    <div><label class="block text-xs font-semibold text-slate-700 mb-1">Jumlah *</label><input id="stock-adjust-qty" type="number" min="0" step="1" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"></div>
-                </div>
-                <div><label class="block text-xs font-semibold text-slate-700 mb-1">Alasan</label><input id="stock-adjust-reason" maxlength="120" placeholder="Contoh: Restock supplier / barang rusak" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"></div>
-                <div id="stock-adjust-current" class="p-3 rounded-xl bg-slate-50 text-xs text-slate-600"></div>
-                <div class="flex justify-end gap-2"><button type="button" onclick="closeStockAdjustmentModal()" class="px-4 py-2 border rounded-xl text-xs font-semibold">Batal</button><button type="submit" class="px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold">Simpan Perubahan</button></div>
-            </form>
-        </div>
-    </div>
-
-    <!-- MODAL: REFUND -->
-    <div id="modal-refund" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
-            <div class="px-6 py-4 bg-rose-600 text-white flex items-center justify-between"><div><h3 class="font-bold text-base">Refund Transaksi</h3><p id="refund-trx-label" class="text-[11px] text-rose-100"></p></div><button onclick="closeRefundModal()" class="text-rose-100 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button></div>
-            <form onsubmit="processRefund(event)" class="p-6 space-y-4">
-                <div id="refund-items-list" class="space-y-2 max-h-72 overflow-y-auto"></div>
-                <div><label class="block text-xs font-semibold text-slate-700 mb-1">Alasan Refund</label><input id="refund-reason" maxlength="120" placeholder="Contoh: Pesanan dibatalkan" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"></div>
-                <div class="flex justify-between items-center p-3 bg-rose-50 rounded-xl"><span class="text-xs font-semibold text-rose-700">Total Refund</span><strong id="refund-total" class="text-rose-700">Rp 0</strong></div>
-                <div class="flex justify-end gap-2"><button type="button" onclick="closeRefundModal()" class="px-4 py-2 border rounded-xl text-xs font-semibold">Batal</button><button type="submit" class="px-5 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold">Proses Refund</button></div>
-            </form>
-        </div>
-    </div>
-
     <!-- MODAL 3: TRANSACTION DETAIL -->
     <div id="modal-detail" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
@@ -725,6 +751,21 @@
         let selectedReportMonth = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })();
         let salesChartInstance = null;
         let transactions = [];
+
+        function normalizeProductRecord(p) {
+            return {
+                id: p.id,
+                name: String(p.name ?? 'Produk Tanpa Nama'),
+                category: String(p.category ?? 'Lainnya'),
+                buyPrice: Number(p.buy_price ?? p.buyPrice ?? 0),
+                sellPrice: Number(p.sell_price ?? p.sellPrice ?? 0),
+                stock: Number(p.stock ?? 0),
+                minStock: Number(p.min_stock ?? p.minStock ?? 5),
+                sku: String(p.sku ?? `SKU-${p.id}`),
+                icon: String(p.icon ?? getProductIcon(String(p.category ?? '')))
+            };
+        }
+
 
         function generateInitialHistory() {
             const sampleTrx = [];
@@ -822,21 +863,14 @@
                     .select('*')
                     .order('id', { ascending: true });
 
-                if (!prodErr && dbProducts) {
+                if (prodErr) {
+                    console.error('Supabase products fetch error:', prodErr);
+                    showToast(`Gagal memuat stok produk: ${prodErr.message || 'Error database'}`, 'danger');
+                } else if (dbProducts) {
                     if (dbProducts.length === 0) {
                         await seedSupabaseInitialProducts();
                     } else {
-                        products = dbProducts.map(p => ({
-                            id: p.id,
-                            name: p.name,
-                            category: p.category,
-                            buyPrice: Number(p.buy_price || 0),
-                            sellPrice: Number(p.sell_price || 0),
-                            stock: Number(p.stock || 0),
-                            minStock: Number(p.min_stock ?? 5),
-                            sku: p.sku || `SKU-${p.id}`,
-                            icon: p.icon || 'fa-box'
-                        }));
+                        products = dbProducts.map(normalizeProductRecord);
                         renderPosProducts();
                         renderInventoryTable();
                     }
@@ -857,7 +891,6 @@
                         discount: Number(t.discount || 0),
                         total: Number(t.total || 0),
                         paymentMethod: t.payment_method,
-                        type: t.type || (String(t.payment_method || '').toLowerCase() === 'refund' ? 'refund' : 'sale'),
                         paidAmount: Number(t.paid_amount || 0),
                         change: Number(t.change || 0)
                     }));
@@ -886,17 +919,7 @@
 
             const { data, error } = await supabaseClient.from('products').insert(records).select();
             if (!error && data) {
-                products = data.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    category: p.category,
-                    buyPrice: Number(p.buy_price),
-                    sellPrice: Number(p.sell_price),
-                    stock: Number(p.stock),
-                    minStock: Number(p.min_stock ?? 5),
-                    sku: p.sku,
-                    icon: p.icon
-                }));
+                products = data.map(normalizeProductRecord);
                 renderPosProducts();
                 renderInventoryTable();
             }
@@ -1206,39 +1229,267 @@
 
         async function processCheckout() {
             if (cart.length === 0) return;
+
             const subtotal = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
-            const discountPercent = Math.min(100, Math.max(0, parseFloat(document.getElementById('cart-discount').value) || 0));
+            const discountPercent = parseFloat(document.getElementById('cart-discount').value) || 0;
             const discountAmount = subtotal * (discountPercent / 100);
             const grandTotal = subtotal - discountAmount;
-            let cashReceived = grandTotal, change = 0;
+
+            let cashReceived = grandTotal;
+            let change = 0;
+
             if (selectedPayment === 'Tunai') {
                 cashReceived = parseFloat(document.getElementById('cash-received').value) || 0;
-                if (cashReceived < grandTotal) { showToast('Uang pembayaran kurang!', 'danger'); return; }
+                if (cashReceived < grandTotal) {
+                    showToast('Uang pembayaran kurang!', 'danger');
+                    return;
+                }
                 change = cashReceived - grandTotal;
             }
-            const originalStocks = new Map();
-            cart.forEach(item => { const p=products.find(x=>Number(x.id)===Number(item.id)); if(p) originalStocks.set(Number(p.id), Number(p.stock)||0); });
-            const newStocks = new Map();
-            for (const item of cart) { const p=products.find(x=>Number(x.id)===Number(item.id)); if(!p || (Number(p.stock)||0) < item.qty){ showToast(`Stok ${item.name} tidak cukup.`, 'danger'); return; } newStocks.set(Number(p.id), (Number(p.stock)||0)-item.qty); }
-            const trxId = 'TRX-' + Date.now();
-            const newTransaction = { id: trxId, timestamp: new Date(), items: [...cart], subtotal, discount: discountPercent, total: grandTotal, paymentMethod: selectedPayment, paidAmount: cashReceived, change, type:'sale' };
+
+            // AUTOMATIC STOCK DEDUCTION
+            cart.forEach(cartItem => {
+                const product = products.find(p => p.id === cartItem.id);
+                if (product) {
+                    product.stock = Math.max(0, product.stock - cartItem.qty);
+                }
+            });
+
+            // Create Transaction Record
+            const trxId = 'TRX-' + Math.floor(10000 + Math.random() * 90000);
+            const newTransaction = {
+                id: trxId,
+                timestamp: new Date(),
+                items: [...cart],
+                subtotal: subtotal,
+                discount: discountPercent,
+                total: grandTotal,
+                paymentMethod: selectedPayment,
+                paidAmount: cashReceived,
+                change: change
+            };
+
+            // SYNC WITH SUPABASE IF CONNECTED
+            if (isSupabaseConnected && supabaseClient) {
+                try {
+                    // Update Stock in Supabase
+                    for (const item of cart) {
+                        const targetProd = products.find(p => p.id === item.id);
+                        if (targetProd) {
+                            await supabaseClient.from('products').update({ stock: targetProd.stock }).eq('id', item.id);
+                        }
+                    }
+
+                    // Insert Transaction in Supabase
+                    await supabaseClient.from('transactions').insert({
+                        id: trxId,
+                        timestamp: newTransaction.timestamp.toISOString(),
+                        items: JSON.stringify(cart),
+                        subtotal: subtotal,
+                        discount: discountPercent,
+                        total: grandTotal,
+                        payment_method: selectedPayment,
+                        paid_amount: cashReceived,
+                        change: change
+                    });
+
+                } catch (err) {
+                    console.error("Gagal menyimpan ke Supabase:", err);
+                }
+            }
+
+            transactions.unshift(newTransaction);
+
+            // Open Printed Receipt Modal
+            openReceiptModal(newTransaction);
+
+            // Reset Cart & Inputs
+            cart = [];
+            document.getElementById('cash-received').value = '';
+            document.getElementById('cart-discount').value = '0';
+            renderCart();
+            renderPosProducts();
+            renderReportsView();
+            showToast('Transaksi Berhasil & Stok Diperbarui!');
+        }
+
+        function renderInventoryTable() {
+            const searchEl = document.getElementById('inventory-search');
+            const categoryEl = document.getElementById('inventory-category-filter');
+            const tbody = document.getElementById('inventory-table-body');
+            if (!tbody || !categoryEl) return;
+
+            const searchQuery = String(searchEl?.value || '').trim().toLowerCase();
+            let categoryFilter = categoryEl.value || 'all';
+            products = products.map(normalizeProductRecord);
+
+            const categories = ['all', ...new Set(products.map(p => p.category))];
+            const selectEl = document.getElementById('inventory-category-filter');
+            selectEl.innerHTML = categories.map(cat => `<option value="${cat}">${cat === 'all' ? 'Semua Kategori' : cat}</option>`).join('');
+            if (!categories.includes(categoryFilter)) categoryFilter = 'all';
+            selectEl.value = categoryFilter;
+
+            const filtered = products.filter(p => {
+                const matchCat = categoryFilter === 'all' || p.category === categoryFilter;
+                const matchSearch = String(p.name || '').toLowerCase().includes(searchQuery) || String(p.sku || '').toLowerCase().includes(searchQuery);
+                return matchCat && matchSearch;
+            });
+
+            document.getElementById('stat-total-products').innerText = products.length;
+            document.getElementById('stat-low-stock').innerText = products.filter(p => p.stock > 0 && p.stock <= (Number(p.minStock) || 0)).length;
+            document.getElementById('stat-out-stock').innerText = products.filter(p => p.stock === 0).length;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="py-8 text-center text-slate-400">
+                            Tidak ada produk ditemukan
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(p => {
+                let stockStatusBadge = '';
+                const currentStock = Number(p.stock) || 0;
+                const minimumStock = Number(p.minStock) || 0;
+
+                if (currentStock === 0) {
+                    stockStatusBadge = `<span class="px-2.5 py-1 bg-rose-100 text-rose-700 font-bold text-[11px] rounded-full">Habis (0)</span>`;
+                } else if (currentStock <= minimumStock) {
+                    stockStatusBadge = `<span class="px-2.5 py-1 bg-amber-100 text-amber-700 font-bold text-[11px] rounded-full">Menipis (${currentStock})</span>`;
+                } else {
+                    stockStatusBadge = `<span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 font-bold text-[11px] rounded-full">Aman (${currentStock})</span>`;
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50/80 transition">
+                        <td class="py-3 px-4 font-semibold text-slate-800">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-xs">
+                                    <i class="fa-solid ${p.icon || 'fa-box'}"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-slate-800">${p.name}</p>
+                                    <p class="text-[10px] text-slate-400 font-mono">${p.sku}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3 px-4 text-xs font-medium text-slate-600">${p.category}</td>
+                        <td class="py-3 px-4 text-xs font-semibold text-slate-600">${formatRp(p.buyPrice)}</td>
+                        <td class="py-3 px-4 text-xs font-bold text-slate-800">${formatRp(p.sellPrice)}</td>
+                        <td class="py-3 px-4 text-xs font-bold text-slate-600">${Number(p.minStock) || 0}</td>
+                        <td class="py-3 px-4">${stockStatusBadge}</td>
+                        <td class="py-3 px-4 text-center">
+                            <div class="flex items-center justify-center space-x-2">
+                                <button onclick="quickAdjustStock(${p.id}, 5)" title="Tambah 5 Stok" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">+5</button>
+                                <button onclick="openEditProductModal(${p.id})" title="Edit Produk" class="p-1.5 text-brand-600 hover:bg-brand-50 rounded-lg text-xs transition"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button onclick="deleteProduct(${p.id})" title="Hapus Produk" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs transition"><i class="fa-solid fa-trash-can"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function quickAdjustStock(id, delta) {
+            const productId = Number(id);
+            const product = products.find(p => Number(p.id) === productId);
+            if (!product) {
+                showToast('Produk tidak ditemukan.', 'danger');
+                return;
+            }
+
+            const oldStock = Number(product.stock) || 0;
+            const newStock = Math.max(0, oldStock + Number(delta));
+            product.stock = newStock;
 
             if (isSupabaseConnected && supabaseClient) {
                 try {
-                    for (const [id, stock] of newStocks) { const {error}=await supabaseClient.from('products').update({stock}).eq('id',id); if(error) throw error; }
-                    const {error}=await supabaseClient.from('transactions').insert({id:trxId,timestamp:newTransaction.timestamp.toISOString(),items:JSON.stringify(cart),subtotal,discount:discountPercent,total:grandTotal,payment_method:selectedPayment,paid_amount:cashReceived,change});
-                    if(error) throw error;
-                } catch(err) {
-                    for (const [id, stock] of originalStocks) { try { await supabaseClient.from('products').update({stock}).eq('id',id); } catch(_){} }
-                    showToast(`Transaksi gagal disimpan: ${err.message || err}`, 'danger'); return;
+                    const { error } = await supabaseClient
+                        .from('products')
+                        .update({ stock: newStock })
+                        .eq('id', productId);
+
+                    if (error) {
+                        product.stock = oldStock;
+                        console.error('Supabase stock update error:', error);
+                        renderInventoryTable();
+                        renderPosProducts();
+                        showToast(`Gagal memperbarui stok: ${error.message || 'Error database'}`, 'danger');
+                        return;
+                    }
+                } catch (err) {
+                    product.stock = oldStock;
+                    console.error('Supabase stock update exception:', err);
+                    renderInventoryTable();
+                    renderPosProducts();
+                    showToast(`Gagal memperbarui stok: ${err.message || 'Terjadi kesalahan.'}`, 'danger');
+                    return;
                 }
             }
-            products.forEach(p=>{ if(newStocks.has(Number(p.id))) p.stock=newStocks.get(Number(p.id)); });
-            transactions.unshift(newTransaction);
-            openReceiptModal(newTransaction);
-            cart=[]; document.getElementById('cash-received').value=''; document.getElementById('cart-discount').value='0';
-            renderCart(); renderPosProducts(); renderInventoryTable(); renderReportsView(); updateLowStockBadge();
-            showToast('Transaksi berhasil & stok diperbarui!');
+
+            renderInventoryTable();
+            renderPosProducts();
+            updateLowStockBadge();
+            showToast(`Stok ${product.name} ${delta >= 0 ? 'bertambah' : 'berkurang'} ${delta >= 0 ? '+' : ''}${delta}`);
+        }
+
+        function updateLowStockBadge() {
+            const lowStockCount = products.filter(p => p.stock <= (Number(p.minStock) || 0)).length;
+            const badge = document.getElementById('low-stock-badge');
+            if (lowStockCount > 0) {
+                badge.innerText = lowStockCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function openAddProductModal() {
+            document.getElementById('modal-product-title').innerText = 'Tambah Produk Baru';
+            document.getElementById('form-product').reset();
+            document.getElementById('prod-id').value = '';
+            document.getElementById('prod-category').value = 'Minuman';
+            document.getElementById('prod-stock').value = '0';
+            document.getElementById('prod-min-stock').value = '5';
+            document.getElementById('modal-product').classList.remove('hidden');
+            setTimeout(() => document.getElementById('prod-name').focus(), 50);
+        }
+
+        function openEditProductModal(id) {
+            const productId = Number(id);
+            const p = products.find(item => Number(item.id) === productId);
+            if (!p) {
+                showToast('Produk tidak ditemukan.', 'danger');
+                return;
+            }
+
+            document.getElementById('modal-product-title').innerText = 'Edit Produk';
+            document.getElementById('prod-id').value = String(p.id);
+            document.getElementById('prod-name').value = p.name || '';
+            document.getElementById('prod-category').value = p.category || 'Minuman';
+            document.getElementById('prod-sku').value = p.sku || '';
+            document.getElementById('prod-buy-price').value = Number(p.buyPrice || 0);
+            document.getElementById('prod-sell-price').value = Number(p.sellPrice || 0);
+            document.getElementById('prod-stock').value = Number(p.stock || 0);
+            document.getElementById('prod-min-stock').value = Number(p.minStock ?? 5);
+
+            document.getElementById('modal-product').classList.remove('hidden');
+            setTimeout(() => document.getElementById('prod-name').focus(), 50);
+        }
+
+        function closeProductModal() {
+            document.getElementById('modal-product').classList.add('hidden');
+        }
+
+        function getProductIcon(category) {
+            if (category === 'Minuman') return 'fa-mug-hot';
+            if (category === 'Makanan') return 'fa-utensils';
+            if (category === 'Cemilan') return 'fa-cookie';
+            if (category === 'Kebersihan') return 'fa-soap';
+            return 'fa-box';
         }
 
         function generateUniqueSku() {
@@ -1618,14 +1869,15 @@
                         <td class="py-3 px-4 text-xs text-slate-600">${timeFormatted}</td>
                         <td class="py-3 px-4 text-xs font-semibold text-slate-700">${totalItems} item</td>
                         <td class="py-3 px-4">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${trx.type === 'refund' ? 'bg-rose-100 text-rose-700' : (trx.paymentMethod === 'Tunai' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${trx.paymentMethod === 'Tunai' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
                                 ${trx.paymentMethod}
                             </span>
                         </td>
                         <td class="py-3 px-4 text-xs font-bold text-slate-900">${formatRp(trx.total)}</td>
                         <td class="py-3 px-4 text-center">
-                            <button onclick="openDetailModal('${trx.id}')" class="px-3 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand-600 text-slate-600 font-semibold text-xs rounded-lg transition">Detail</button>
-                            ${trx.type !== 'refund' ? `<button onclick="openRefundModal('${trx.id}')" class="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold text-xs rounded-lg transition">Refund</button>` : `<span class="px-2 py-1 bg-rose-100 text-rose-700 font-bold text-[10px] rounded-lg">REFUND</span>`}
+                            <button onclick="openDetailModal('${trx.id}')" class="px-3 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand-600 text-slate-600 font-semibold text-xs rounded-lg transition">
+                                Detail
+                            </button>
                         </td>
                     </tr>
                 `;
@@ -1807,56 +2059,6 @@
             showToast('Laporan CSV berhasil diunduh');
         }
 
-        function openStockAdjustmentModal(productId = null) {
-            const select=document.getElementById('stock-adjust-product');
-            select.innerHTML=products.map(p=>`<option value="${p.id}">${p.name} — stok ${p.stock}</option>`).join('');
-            if(productId!==null) select.value=productId;
-            updateStockAdjustPreview();
-            document.getElementById('stock-adjust-type').value='add';
-            document.getElementById('stock-adjust-qty').value='1';
-            document.getElementById('stock-adjust-reason').value='';
-            document.getElementById('modal-stock-adjustment').classList.remove('hidden');
-        }
-        function closeStockAdjustmentModal(){document.getElementById('modal-stock-adjustment').classList.add('hidden');}
-        function updateStockAdjustPreview(){const p=products.find(x=>Number(x.id)===Number(document.getElementById('stock-adjust-product').value)); if(!p)return; const type=document.getElementById('stock-adjust-type').value; const qty=Number(document.getElementById('stock-adjust-qty').value)||0; let n=type==='add'?p.stock+qty:type==='subtract'?Math.max(0,p.stock-qty):qty; document.getElementById('stock-adjust-current').innerHTML=`Stok sekarang: <b>${p.stock}</b> → stok setelah perubahan: <b>${n}</b>`;}
-        async function saveStockAdjustment(e){
-            e.preventDefault(); const id=Number(document.getElementById('stock-adjust-product').value); const p=products.find(x=>Number(x.id)===id); const qty=Number(document.getElementById('stock-adjust-qty').value); const type=document.getElementById('stock-adjust-type').value; const reason=document.getElementById('stock-adjust-reason').value.trim() || (type==='add'?'Restock':'Penyesuaian stok');
-            if(!p || !Number.isInteger(qty) || qty<0){showToast('Data stok tidak valid.','danger');return;}
-            const oldStock=Number(p.stock)||0; const newStock=type==='add'?oldStock+qty:type==='subtract'?Math.max(0,oldStock-qty):qty; const delta=newStock-oldStock; if(delta===0){showToast('Tidak ada perubahan stok.','danger');return;}
-            if(isSupabaseConnected&&supabaseClient){try{const {error}=await supabaseClient.from('products').update({stock:newStock}).eq('id',id);if(error)throw error;}catch(err){showToast(`Gagal memperbarui stok: ${err.message||err}`,'danger');return;}}
-            p.stock=newStock; renderInventoryTable();renderPosProducts();updateLowStockBadge();closeStockAdjustmentModal();showToast(`${p.name}: stok ${delta>0?'bertambah':'berkurang'} ${Math.abs(delta)}. ${reason}`);
-        }
-        let refundTransactionId=null;
-        function openRefundModal(trxId){
-            const trx=transactions.find(t=>t.id===trxId); if(!trx||trx.type==='refund'){showToast('Transaksi tidak dapat direfund.','danger');return;} refundTransactionId=trxId; document.getElementById('refund-trx-label').innerText=trx.id;
-            const alreadyRefunded={};
-            transactions.filter(t=>t.type==='refund').forEach(r=>{(r.items||[]).forEach(ri=>{if(ri.originalTransactionId===trxId){const key=String(ri.id);alreadyRefunded[key]=(alreadyRefunded[key]||0)+Math.abs(Number(ri.qty)||0);}});});
-            const list=document.getElementById('refund-items-list'); list.innerHTML=(trx.items||[]).map((item,i)=>{const sold=Number(item.qty)||0;const refunded=alreadyRefunded[String(item.id)]||0;const available=Math.max(0,sold-refunded);return `<div class="flex items-center gap-3 p-3 border rounded-xl"><div class="flex-1"><div class="text-xs font-bold">${item.name}</div><div class="text-[10px] text-slate-400">${formatRp(item.price)} × tersedia refund ${available}</div></div><input data-refund-index="${i}" type="number" min="0" max="${available}" value="0" oninput="updateRefundTotal()" class="refund-qty w-20 px-2 py-2 border rounded-lg text-sm text-center" ${available===0?'disabled':''}></div>`;}).join('');
-            document.getElementById('refund-reason').value=''; updateRefundTotal(); document.getElementById('modal-refund').classList.remove('hidden');
-        }
-        function closeRefundModal(){refundTransactionId=null;document.getElementById('modal-refund').classList.add('hidden');}
-        function updateRefundTotal(){const trx=transactions.find(t=>t.id===refundTransactionId);if(!trx)return;let total=0;document.querySelectorAll('.refund-qty').forEach(input=>{const i=Number(input.dataset.refundIndex);total+=(Number(input.value)||0)*(Number(trx.items[i].price)||0);});document.getElementById('refund-total').innerText=formatRp(total);}
-        async function processRefund(e){
-            e.preventDefault(); const trx=transactions.find(t=>t.id===refundTransactionId); if(!trx)return; const refundItems=[]; let refundTotal=0; document.querySelectorAll('.refund-qty').forEach(input=>{const i=Number(input.dataset.refundIndex),q=Number(input.value)||0;if(q>0){refundItems.push({...trx.items[i],qty:-q,originalTransactionId:trxId});refundTotal+=(Number(trx.items[i].price)||0)*q;}}); if(!refundItems.length){showToast('Pilih minimal satu item untuk direfund.','danger');return;}
-            const stockBefore=new Map(), stockAfter=new Map();
-            for(const item of refundItems){const p=products.find(x=>Number(x.id)===Number(item.id));if(p){stockBefore.set(Number(p.id),p.stock);stockAfter.set(Number(p.id),p.stock+Math.abs(item.qty));}}
-            const refundId='REF-'+Date.now(); const refundTrx={id:refundId,timestamp:new Date(),items:refundItems,subtotal:-refundTotal,discount:0,total:-refundTotal,paymentMethod:'Refund',paidAmount:0,change:0,type:'refund',reason:document.getElementById('refund-reason').value.trim()};
-            if(isSupabaseConnected&&supabaseClient){try{for(const [id,stock] of stockAfter){const {error}=await supabaseClient.from('products').update({stock}).eq('id',id);if(error)throw error;}const {error}=await supabaseClient.from('transactions').insert({id:refundId,timestamp:refundTrx.timestamp.toISOString(),items:JSON.stringify(refundItems),subtotal:-refundTotal,discount:0,total:-refundTotal,payment_method:'Refund',paid_amount:0,change:0});if(error)throw error;}catch(err){for(const [id,stock] of stockBefore){try{await supabaseClient.from('products').update({stock}).eq('id',id);}catch(_){} }showToast(`Refund gagal: ${err.message||err}`,'danger');return;}}
-            products.forEach(p=>{if(stockAfter.has(Number(p.id)))p.stock=stockAfter.get(Number(p.id));}); transactions.unshift(refundTrx); closeRefundModal(); renderInventoryTable();renderPosProducts();renderReportsView();updateLowStockBadge();showToast(`Refund ${formatRp(refundTotal)} berhasil.`);
-        }
-        // Recalculate preview whenever stock form inputs change.
-        document.addEventListener('input',e=>{if(e.target.id==='stock-adjust-qty')updateStockAdjustPreview();});
-        document.addEventListener('change',e=>{if(e.target.id==='stock-adjust-product'||e.target.id==='stock-adjust-type')updateStockAdjustPreview();});
-
-        let deferredInstallPrompt=null;
-        function setupPWA(){
-            const manifest={name:'KasirKu POS Pro',short_name:'KasirKu',start_url:'./',display:'standalone',background_color:'#f1f5f9',theme_color:'#0f172a',icons:[{src:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#0ea5e9"/><text x="256" y="330" text-anchor="middle" font-size="250" fill="white">$</text></svg>'),sizes:'512x512',type:'image/svg+xml'}]};
-            const link=document.createElement('link');link.rel='manifest';link.href='data:application/manifest+json;charset=utf-8,'+encodeURIComponent(JSON.stringify(manifest));document.head.appendChild(link);
-            window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;document.getElementById('install-app-btn')?.classList.remove('hidden');});
-            window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;document.getElementById('install-app-btn')?.classList.add('hidden');showToast('KasirKu berhasil dipasang sebagai aplikasi.');});
-        }
-        async function installPWA(){if(!deferredInstallPrompt){showToast('Jika tombol install belum muncul, gunakan menu browser → Install App/Tambahkan ke layar utama.','info');return;}deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;}
-
         function confirmResetDemoData() {
             openConfirmModal('Reset Data', 'Reset ulang data demo toko dan stok barang ke kondisi awal?', () => {
                 products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
@@ -1871,7 +2073,6 @@
         }
 
         window.onload = function () {
-            setupPWA();
             initSupabaseClient();
             renderPosProducts();
             renderCart();
