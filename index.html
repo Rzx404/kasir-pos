@@ -12,6 +12,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Chart.js for Reports -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -100,8 +102,8 @@
 
                 <!-- Action Controls -->
                 <div class="flex items-center space-x-2">
-                    <button onclick="resetDemoData()" title="Reset Data Sample" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg hover:bg-slate-800 transition">
-                        <i class="fa-solid fa-rotate-left"></i>
+                    <button onclick="syncDataFromSupabase()" title="Sinkronkan Data" class="text-slate-400 hover:text-brand-400 p-2 rounded-lg hover:bg-slate-800 transition">
+                        <i class="fa-solid fa-rotate"></i>
                     </button>
                 </div>
             </div>
@@ -113,7 +115,7 @@
 
         <!-- SECTION 1: POS / KASIR -->
         <section id="section-pos" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Left: Catalog & Search (7 Cols on desktop) -->
+            <!-- Left: Catalog & Search -->
             <div class="lg:col-span-7 xl:col-span-8 flex flex-col space-y-4">
                 
                 <!-- Search & Filter Bar -->
@@ -135,7 +137,7 @@
                 </div>
             </div>
 
-            <!-- Right: Cart & Transaction Checkout (5 Cols on desktop) -->
+            <!-- Right: Cart & Transaction Checkout -->
             <div class="lg:col-span-5 xl:col-span-4">
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 flex flex-col h-full max-h-[calc(100vh-140px)] sticky top-20">
                     <!-- Cart Header -->
@@ -537,112 +539,68 @@
 
     <script>
         // ==========================================
-        // INITIAL STATE & SAMPLE DATA GENERATOR
+        // KONFIGURASI SUPABASE DATABASE
         // ==========================================
+        const SUPABASE_URL = 'https://supabase.com/dashboard/project/mfmvevzsiinqafmdrmju/sql/bc3fffcb-0616-4cf9-ae20-eae396df2783';
+        const SUPABASE_KEY = 'sb_publishable_P-c3VwW2P4Tt7SzafhM9tw_Xb5Zp0WE';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const INITIAL_PRODUCTS = [
-            { id: 1, name: 'Kopi Milk Sugar', category: 'Minuman', buyPrice: 8000, sellPrice: 18000, stock: 35, sku: 'DRK-001', icon: 'fa-mug-hot' },
-            { id: 2, name: 'Teh Manis Dingin', category: 'Minuman', buyPrice: 2000, sellPrice: 6000, stock: 4, sku: 'DRK-002', icon: 'fa-glass-water' },
-            { id: 3, name: 'Nasi Goreng Spesial', category: 'Makanan', buyPrice: 12000, sellPrice: 25000, stock: 20, sku: 'FOD-001', icon: 'fa-utensils' },
-            { id: 4, name: 'Mie Goreng Telur', category: 'Makanan', buyPrice: 8000, sellPrice: 16000, stock: 15, sku: 'FOD-002', icon: 'fa-bowl-food' },
-            { id: 5, name: 'Air Mineral 600ml', category: 'Minuman', buyPrice: 2000, sellPrice: 4000, stock: 50, sku: 'DRK-003', icon: 'fa-bottle-water' },
-            { id: 6, name: 'Keripik Singkong', category: 'Cemilan', buyPrice: 5000, sellPrice: 10000, stock: 3, sku: 'SNK-001', icon: 'fa-cookie' },
-            { id: 7, name: 'Roti Bakar Cokelat', category: 'Makanan', buyPrice: 7000, sellPrice: 15000, stock: 12, sku: 'FOD-003', icon: 'fa-bread-slice' },
-            { id: 8, name: 'Sabun Cuci Tangan', category: 'Kebersihan', buyPrice: 9000, sellPrice: 14000, stock: 0, sku: 'CLN-001', icon: 'fa-soap' }
-        ];
-
-        let products = [...INITIAL_PRODUCTS];
+        let products = [];
         let cart = [];
         let selectedPayment = 'Tunai';
         let currentReportPeriod = 'today'; // 'today', 'month', 'year'
         let salesChartInstance = null;
-
-        // Generate dynamic historical sales data for today, this month, and this year
         let transactions = [];
 
-        function generateInitialHistory() {
-            const now = new Date();
-            const sampleTrx = [];
-            
-            // Helper to build dates
-            const createDate = (daysAgo, hoursAgo = 0) => {
-                const d = new Date(now);
-                d.setDate(d.getDate() - daysAgo);
-                d.setHours(d.getHours() - hoursAgo);
-                return d;
-            };
-
-            // Today's transactions
-            sampleTrx.push({
-                id: 'TRX-' + Math.floor(10000 + Math.random() * 90000),
-                timestamp: createDate(0, 1),
-                items: [
-                    { id: 1, name: 'Kopi Milk Sugar', price: 18000, buyPrice: 8000, qty: 2 },
-                    { id: 3, name: 'Nasi Goreng Spesial', price: 25000, buyPrice: 12000, qty: 1 }
-                ],
-                subtotal: 61000,
-                discount: 0,
-                total: 61000,
-                paymentMethod: 'Tunai',
-                paidAmount: 70000,
-                change: 9000
-            });
-
-            sampleTrx.push({
-                id: 'TRX-' + Math.floor(10000 + Math.random() * 90000),
-                timestamp: createDate(0, 3),
-                items: [
-                    { id: 5, name: 'Air Mineral 600ml', price: 4000, buyPrice: 2000, qty: 3 },
-                    { id: 7, name: 'Roti Bakar Cokelat', price: 15000, buyPrice: 7000, qty: 2 }
-                ],
-                subtotal: 42000,
-                discount: 5,
-                total: 39900,
-                paymentMethod: 'QRIS',
-                paidAmount: 39900,
-                change: 0
-            });
-
-            // Past days this month transactions
-            for (let i = 1; i <= 10; i++) {
-                sampleTrx.push({
-                    id: 'TRX-' + Math.floor(10000 + Math.random() * 90000),
-                    timestamp: createDate(i, 2),
-                    items: [
-                        { id: 1, name: 'Kopi Milk Sugar', price: 18000, buyPrice: 8000, qty: Math.floor(Math.random() * 3) + 1 },
-                        { id: 4, name: 'Mie Goreng Telur', price: 16000, buyPrice: 8000, qty: Math.floor(Math.random() * 2) + 1 }
-                    ],
-                    subtotal: 50000 + (i * 10000),
-                    discount: 0,
-                    total: 50000 + (i * 10000),
-                    paymentMethod: i % 2 === 0 ? 'Tunai' : 'Transfer',
-                    paidAmount: 100000,
-                    change: 100000 - (50000 + (i * 10000))
-                });
-            }
-
-            // Past months this year transactions
-            for (let m = 1; m <= 5; m++) {
-                const pastMonthDate = new Date(now.getFullYear(), now.getMonth() - m, 15, 12, 0);
-                sampleTrx.push({
-                    id: 'TRX-' + Math.floor(10000 + Math.random() * 90000),
-                    timestamp: pastMonthDate,
-                    items: [
-                        { id: 3, name: 'Nasi Goreng Spesial', price: 25000, buyPrice: 12000, qty: 10 }
-                    ],
-                    subtotal: 250000,
-                    discount: 0,
-                    total: 250000,
-                    paymentMethod: 'Transfer',
-                    paidAmount: 250000,
-                    change: 0
-                });
-            }
-
-            return sampleTrx;
+        // Fetch Data dari Supabase Cloud
+        async function syncDataFromSupabase() {
+            showToast('Menyinkronkan data...', 'info');
+            await fetchProductsFromSupabase();
+            await fetchTransactionsFromSupabase();
+            showToast('Data berhasil diperbarui', 'success');
         }
 
-        transactions = generateInitialHistory();
+        async function fetchProductsFromSupabase() {
+            const { data, error } = await supabase.from('products').select('*').order('name');
+            if (error) {
+                console.error('Error fetching products:', error);
+                showToast('Gagal memuat produk dari database', 'danger');
+                return;
+            }
+            products = data.map(p => ({
+                id: p.id,
+                name: p.name,
+                category: p.category,
+                buyPrice: Number(p.buy_price),
+                sellPrice: Number(p.sell_price),
+                stock: p.stock,
+                sku: p.sku || 'SKU-' + p.id,
+                icon: p.icon || (p.category === 'Minuman' ? 'fa-mug-hot' : (p.category === 'Makanan' ? 'fa-utensils' : 'fa-box'))
+            }));
+            renderPosProducts();
+            renderInventoryTable();
+        }
+
+        async function fetchTransactionsFromSupabase() {
+            const { data, error } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+            if (error) {
+                console.error('Error fetching transactions:', error);
+                showToast('Gagal memuat riwayat transaksi', 'danger');
+                return;
+            }
+            transactions = data.map(t => ({
+                id: t.id,
+                timestamp: new Date(t.timestamp),
+                items: t.items,
+                subtotal: Number(t.subtotal),
+                discount: Number(t.discount),
+                total: Number(t.total),
+                paymentMethod: t.payment_method,
+                paidAmount: Number(t.paid_amount),
+                change: Number(t.change)
+            }));
+            renderReportsView();
+        }
 
         // ==========================================
         // UI CORE & TAB SYSTEM
@@ -658,18 +616,15 @@
         updateClock();
 
         function switchTab(tabName) {
-            // Hide all sections
             document.getElementById('section-pos').classList.add('hidden');
             document.getElementById('section-inventory').classList.add('hidden');
             document.getElementById('section-reports').classList.add('hidden');
 
-            // Reset tab styles
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.remove('bg-brand-600', 'text-white', 'shadow-sm');
                 btn.classList.add('text-slate-300', 'hover:text-white', 'hover:bg-slate-700');
             });
 
-            // Activate target tab
             const activeBtn = document.getElementById(`tab-${tabName}`);
             activeBtn.classList.remove('text-slate-300', 'hover:text-white', 'hover:bg-slate-700');
             activeBtn.classList.add('bg-brand-600', 'text-white', 'shadow-sm');
@@ -924,7 +879,7 @@
             }
         }
 
-        function processCheckout() {
+        async function processCheckout() {
             if (cart.length === 0) return;
 
             const subtotal = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
@@ -944,19 +899,40 @@
                 change = cashReceived - grandTotal;
             }
 
-            // AUTOMATIC STOCK DEDUCTION
-            cart.forEach(cartItem => {
+            const trxId = 'TRX-' + Math.floor(10000 + Math.random() * 90000);
+            const now = new Date();
+
+            // 1. SIMPAN TRANSAKSI KE SUPABASE
+            const { error: errorTx } = await supabase.from('transactions').insert([{
+                id: trxId,
+                timestamp: now.toISOString(),
+                items: cart,
+                subtotal: subtotal,
+                discount: discountPercent,
+                total: grandTotal,
+                payment_method: selectedPayment,
+                paid_amount: cashReceived,
+                change: change
+            }]);
+
+            if (errorTx) {
+                showToast('Gagal menyimpan transaksi: ' + errorTx.message, 'danger');
+                return;
+            }
+
+            // 2. OTOMATIS POTONG STOK DI SUPABASE
+            for (const cartItem of cart) {
                 const product = products.find(p => p.id === cartItem.id);
                 if (product) {
-                    product.stock = Math.max(0, product.stock - cartItem.qty);
+                    const updatedStock = Math.max(0, product.stock - cartItem.qty);
+                    await supabase.from('products').update({ stock: updatedStock }).eq('id', product.id);
+                    product.stock = updatedStock;
                 }
-            });
+            }
 
-            // Create Transaction Record
-            const trxId = 'TRX-' + Math.floor(10000 + Math.random() * 90000);
             const newTransaction = {
                 id: trxId,
-                timestamp: new Date(),
+                timestamp: now,
                 items: [...cart],
                 subtotal: subtotal,
                 discount: discountPercent,
@@ -968,15 +944,14 @@
 
             transactions.unshift(newTransaction);
 
-            // Open Printed Receipt Modal
             openReceiptModal(newTransaction);
 
-            // Reset Cart & Inputs
             cart = [];
             document.getElementById('cash-received').value = '';
             document.getElementById('cart-discount').value = '0';
             renderCart();
             renderPosProducts();
+            renderReportsView();
             showToast('Transaksi Berhasil & Stok Diperbarui!');
         }
 
@@ -989,7 +964,6 @@
             const categoryFilter = document.getElementById('inventory-category-filter').value;
             const tbody = document.getElementById('inventory-table-body');
 
-            // Update category dropdown options
             const categories = ['all', ...new Set(products.map(p => p.category))];
             const selectEl = document.getElementById('inventory-category-filter');
             selectEl.innerHTML = categories.map(cat => `<option value="${cat}">${cat === 'all' ? 'Semua Kategori' : cat}</option>`).join('');
@@ -1001,7 +975,6 @@
                 return matchCat && matchSearch;
             });
 
-            // Update Stats Badges
             document.getElementById('stat-total-products').innerText = products.length;
             document.getElementById('stat-low-stock').innerText = products.filter(p => p.stock > 0 && p.stock <= 5).length;
             document.getElementById('stat-out-stock').innerText = products.filter(p => p.stock === 0).length;
@@ -1056,10 +1029,14 @@
             }).join('');
         }
 
-        function quickAdjustStock(id, delta) {
+        async function quickAdjustStock(id, delta) {
             const product = products.find(p => p.id === id);
             if (product) {
-                product.stock += delta;
+                const newStock = product.stock + delta;
+                const { error } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
+                if (error) return showToast('Gagal mengubah stok', 'danger');
+                
+                product.stock = newStock;
                 renderInventoryTable();
                 renderPosProducts();
                 showToast(`Stok ${product.name} bertambah +${delta}`);
@@ -1105,7 +1082,7 @@
             document.getElementById('modal-product').classList.add('hidden');
         }
 
-        function handleSaveProduct(e) {
+        async function handleSaveProduct(e) {
             e.preventDefault();
 
             const id = document.getElementById('prod-id').value;
@@ -1115,44 +1092,40 @@
             const buyPrice = parseFloat(document.getElementById('prod-buy-price').value) || 0;
             const sellPrice = parseFloat(document.getElementById('prod-sell-price').value) || 0;
             const stock = parseInt(document.getElementById('prod-stock').value) || 0;
+            const icon = category === 'Minuman' ? 'fa-mug-hot' : (category === 'Makanan' ? 'fa-utensils' : 'fa-box');
 
             if (id) {
-                // Edit existing
-                const index = products.findIndex(p => p.id == id);
-                if (index !== -1) {
-                    products[index] = { ...products[index], name, category, sku, buyPrice, sellPrice, stock };
-                    showToast('Produk berhasil diperbarui');
-                }
+                // Update ke Supabase
+                const { error } = await supabase.from('products').update({
+                    name, category, sku, buy_price: buyPrice, sell_price: sellPrice, stock, icon
+                }).eq('id', id);
+
+                if (error) return showToast('Gagal memperbarui produk: ' + error.message, 'danger');
+                showToast('Produk berhasil diperbarui');
             } else {
-                // Add new
-                const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
-                products.push({
-                    id: newId,
-                    name,
-                    category,
-                    sku,
-                    buyPrice,
-                    sellPrice,
-                    stock,
-                    icon: category === 'Minuman' ? 'fa-mug-hot' : (category === 'Makanan' ? 'fa-utensils' : 'fa-box')
-                });
+                // Insert Baru ke Supabase
+                const { error } = await supabase.from('products').insert([{
+                    name, category, sku, buy_price: buyPrice, sell_price: sellPrice, stock, icon
+                }]);
+
+                if (error) return showToast('Gagal menambahkan produk: ' + error.message, 'danger');
                 showToast('Produk baru ditambahkan');
             }
 
             closeProductModal();
-            renderInventoryTable();
-            renderPosProducts();
+            await fetchProductsFromSupabase();
         }
 
-        function deleteProduct(id) {
+        async function deleteProduct(id) {
             const product = products.find(p => p.id === id);
             if (!product) return;
 
             if (confirm(`Apakah Anda yakin ingin menghapus "${product.name}"?`)) {
-                products = products.filter(p => p.id !== id);
-                renderInventoryTable();
-                renderPosProducts();
+                const { error } = await supabase.from('products').delete().eq('id', id);
+                if (error) return showToast('Gagal menghapus produk', 'danger');
+
                 showToast('Produk telah dihapus', 'info');
+                await fetchProductsFromSupabase();
             }
         }
 
@@ -1193,7 +1166,6 @@
         function renderReportsView() {
             const filteredTrx = filterTransactionsByPeriod(currentReportPeriod);
 
-            // Calculations
             let totalRevenue = 0;
             let totalCost = 0;
             const productSalesMap = {};
@@ -1210,7 +1182,6 @@
 
             const totalProfit = totalRevenue - totalCost;
 
-            // Find top selling product
             let topProduct = '-';
             let topQty = 0;
             Object.entries(productSalesMap).forEach(([name, qty]) => {
@@ -1220,14 +1191,12 @@
                 }
             });
 
-            // Update Summary Cards
             document.getElementById('report-total-revenue').innerText = formatRp(totalRevenue);
             document.getElementById('report-total-profit').innerText = formatRp(totalProfit);
             document.getElementById('report-total-orders').innerText = filteredTrx.length;
             document.getElementById('report-top-product').innerText = topProduct;
             document.getElementById('report-top-product-qty').innerText = `${topQty} unit terjual`;
 
-            // Update Period Title Text
             const titleMap = { 'today': 'Hari Ini', 'month': 'Bulan Ini', 'year': 'Tahun Ini' };
             document.getElementById('chart-period-title').innerText = titleMap[currentReportPeriod];
 
@@ -1284,7 +1253,6 @@
             let dataPoints = [];
 
             if (period === 'today') {
-                // Group by Hours (0 to 23)
                 labels = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
                 dataPoints = labels.map(l => {
                     const hour = parseInt(l.split(':')[0]);
@@ -1292,7 +1260,6 @@
                                   .reduce((s, t) => s + t.total, 0);
                 });
             } else if (period === 'month') {
-                // Group by Days of Month (1 to 31)
                 labels = Array.from({length: 15}, (_, i) => `Tgl ${(i + 1) * 2}`);
                 dataPoints = labels.map((_, idx) => {
                     const day = (idx + 1) * 2;
@@ -1300,7 +1267,6 @@
                                   .reduce((s, t) => s + t.total, 0);
                 });
             } else {
-                // Group by Months
                 labels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
                 dataPoints = labels.map((_, monthIdx) => {
                     return trxList.filter(t => new Date(t.timestamp).getMonth() === monthIdx)
@@ -1456,27 +1422,11 @@
             showToast('Laporan CSV berhasil diunduh');
         }
 
-        function resetDemoData() {
-            if (confirm('Reset ulang data demo toko dan stok barang?')) {
-                products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
-                cart = [];
-                transactions = generateInitialHistory();
-                renderPosProducts();
-                renderCart();
-                renderInventoryTable();
-                renderReportsView();
-                showToast('Data demo berhasil direset ke awal', 'info');
-            }
-        }
-
         // ==========================================
         // INITIALIZATION
         // ==========================================
         window.onload = function () {
-            renderPosProducts();
-            renderCart();
-            renderInventoryTable();
-            renderReportsView();
+            syncDataFromSupabase();
         }
     </script>
 </body>
