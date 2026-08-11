@@ -14,8 +14,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Supabase JS Client CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Clerk Authentication -->
-    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_ZnVua3kybW9zcXVpdG8tNC5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -142,79 +140,7 @@
     </style>
 </head>
 <body class="bg-slate-100 font-sans text-slate-800 antialiased min-h-screen flex flex-col">
-
-    <!-- AUTH GATE: POS tidak dapat diakses sebelum login Clerk -->
-    <div id="auth-gate" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-4">
-        <div class="w-full max-w-md">
-            <div class="text-center text-white mb-5">
-                <div class="inline-flex w-14 h-14 items-center justify-center rounded-2xl bg-sky-500 shadow-lg shadow-sky-500/20 mb-3">
-                    <i class="fa-solid fa-cash-register text-2xl"></i>
-                </div>
-                <h1 class="text-2xl font-extrabold">KasirKu <span class="text-sky-400">POS Pro</span></h1>
-                <p id="auth-status" class="text-sm text-slate-400 mt-1">Memuat sistem login...</p>
-            </div>
-            <div id="clerk-sign-in" class="bg-white rounded-2xl shadow-2xl overflow-hidden"></div>
-        </div>
-    </div>
-
-    <script>
-        const APP_URL = 'https://rzx404.github.io/kasir-pos/';
-        let clerkReady = false;
-
-        async function initClerkAuth() {
-            const gate = document.getElementById('auth-gate');
-            const signIn = document.getElementById('clerk-sign-in');
-            const status = document.getElementById('auth-status');
-
-            try {
-                // Clerk script menggunakan async, jadi tunggu sampai object Clerk tersedia.
-                for (let i = 0; i < 100 && !window.Clerk; i++) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-
-                if (!window.Clerk) {
-                    status.textContent = 'Gagal memuat Clerk. Periksa koneksi internet.';
-                    return;
-                }
-
-                await window.Clerk.load();
-                clerkReady = true;
-
-                if (window.Clerk.user) {
-                    gate.classList.add('hidden');
-                    window.currentClerkUser = window.Clerk.user;
-                    if (typeof window.mountClerkUserButton === 'function') window.mountClerkUserButton();
-                    return;
-                }
-
-                status.textContent = 'Silakan login untuk masuk ke POS.';
-                await window.Clerk.mountSignIn(signIn, {
-                    afterSignInUrl: APP_URL,
-                    afterSignUpUrl: APP_URL,
-                    fallbackRedirectUrl: APP_URL
-                });
-
-                window.Clerk.addListener(({ user }) => {
-                    if (user) {
-                        window.currentClerkUser = user;
-                        window.location.replace(APP_URL);
-                    }
-                });
-            } catch (error) {
-                console.error('Clerk initialization error:', error);
-                status.textContent = 'Login gagal dimuat. Silakan refresh halaman.';
-                signIn.innerHTML = '<div class="p-6 text-center text-sm text-rose-600">Terjadi masalah saat memuat login Clerk.</div>';
-            }
-        }
-
-        function logoutClerk() {
-            if (window.Clerk) window.Clerk.signOut({ redirectUrl: APP_URL });
-        }
-
-        window.addEventListener('load', initClerkAuth);
-    </script>
-
-    <!-- Top Header -->
+<!-- Top Header -->
     <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
@@ -252,9 +178,6 @@
                         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" id="supabase-status-dot"></span>
                         <span id="supabase-status-text">Supabase: Aktif</span>
                     </div>
-                    <button onclick="logoutClerk()" title="Keluar" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg hover:bg-slate-800 transition">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                    </button>
                     <button onclick="confirmResetDemoData()" title="Reset Data Sample" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg hover:bg-slate-800 transition">
                         <i class="fa-solid fa-rotate-left"></i>
                     </button>
@@ -375,10 +298,16 @@
                     <p class="text-xs text-slate-500">Kelola katalog barang, pantau sisa stok, dan perbarui harga penjualan.</p>
                 </div>
                 <div class="flex items-center space-x-3 w-full sm:w-auto">
-                    <button onclick="openAddProductModal()" class="w-full sm:w-auto px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
-                        <i class="fa-solid fa-plus"></i>
-                        <span>Tambah Produk Baru</span>
-                    </button>
+                    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        <button onclick="openStockHistoryModal()" class="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                            <span>Riwayat Stok</span>
+                        </button>
+                        <button onclick="openAddProductModal()" class="w-full sm:w-auto px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Tambah Produk Baru</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -751,21 +680,11 @@
         let selectedReportMonth = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })();
         let salesChartInstance = null;
         let transactions = [];
-
-        function normalizeProductRecord(p) {
-            return {
-                id: p.id,
-                name: String(p.name ?? 'Produk Tanpa Nama'),
-                category: String(p.category ?? 'Lainnya'),
-                buyPrice: Number(p.buy_price ?? p.buyPrice ?? 0),
-                sellPrice: Number(p.sell_price ?? p.sellPrice ?? 0),
-                stock: Number(p.stock ?? 0),
-                minStock: Number(p.min_stock ?? p.minStock ?? 5),
-                sku: String(p.sku ?? `SKU-${p.id}`),
-                icon: String(p.icon ?? getProductIcon(String(p.category ?? '')))
-            };
-        }
-
+        let stockMovements = [];
+        let stockAction = 'add';
+        let activeStockProductId = null;
+        let activeRefundTransactionId = null;
+        let deferredInstallPrompt = null;
 
         function generateInitialHistory() {
             const sampleTrx = [];
@@ -863,14 +782,21 @@
                     .select('*')
                     .order('id', { ascending: true });
 
-                if (prodErr) {
-                    console.error('Supabase products fetch error:', prodErr);
-                    showToast(`Gagal memuat stok produk: ${prodErr.message || 'Error database'}`, 'danger');
-                } else if (dbProducts) {
+                if (!prodErr && dbProducts) {
                     if (dbProducts.length === 0) {
                         await seedSupabaseInitialProducts();
                     } else {
-                        products = dbProducts.map(normalizeProductRecord);
+                        products = dbProducts.map(p => ({
+                            id: p.id,
+                            name: p.name,
+                            category: p.category,
+                            buyPrice: Number(p.buy_price || 0),
+                            sellPrice: Number(p.sell_price || 0),
+                            stock: Number(p.stock || 0),
+                            minStock: Number(p.min_stock ?? 5),
+                            sku: p.sku || `SKU-${p.id}`,
+                            icon: p.icon || 'fa-box'
+                        }));
                         renderPosProducts();
                         renderInventoryTable();
                     }
@@ -892,7 +818,10 @@
                         total: Number(t.total || 0),
                         paymentMethod: t.payment_method,
                         paidAmount: Number(t.paid_amount || 0),
-                        change: Number(t.change || 0)
+                        change: Number(t.change || 0),
+                        refundedTotal: Number(t.refund_amount || 0),
+                        netTotal: Math.max(0, Number(t.total || 0) - Number(t.refund_amount || 0)),
+                        refunds: typeof t.refund_items === 'string' ? (() => { try { return JSON.parse(t.refund_items); } catch(e) { return []; } })() : (t.refund_items || [])
                     }));
                     renderReportsView();
                 }
@@ -919,7 +848,17 @@
 
             const { data, error } = await supabaseClient.from('products').insert(records).select();
             if (!error && data) {
-                products = data.map(normalizeProductRecord);
+                products = data.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    category: p.category,
+                    buyPrice: Number(p.buy_price),
+                    sellPrice: Number(p.sell_price),
+                    stock: Number(p.stock),
+                    minStock: Number(p.min_stock ?? 5),
+                    sku: p.sku,
+                    icon: p.icon
+                }));
                 renderPosProducts();
                 renderInventoryTable();
             }
@@ -998,6 +937,14 @@
         let activePosCategory = 'all';
 
         function renderPosCategories() {
+            products = products.map(p => ({
+                ...p,
+                stock: Number(p.stock) || 0,
+                minStock: Number(p.minStock) || 0,
+                buyPrice: Number(p.buyPrice) || 0,
+                sellPrice: Number(p.sellPrice) || 0
+            }));
+
             const categories = ['all', ...new Set(products.map(p => p.category))];
             const container = document.getElementById('category-filter-container');
             container.innerHTML = categories.map(cat => {
@@ -1274,14 +1221,18 @@
                 try {
                     // Update Stock in Supabase
                     for (const item of cart) {
-                        const targetProd = products.find(p => p.id === item.id);
+                        const targetProd = products.find(p => Number(p.id) === Number(item.id));
                         if (targetProd) {
-                            await supabaseClient.from('products').update({ stock: targetProd.stock }).eq('id', item.id);
+                            const { error: stockError } = await supabaseClient
+                                .from('products')
+                                .update({ stock: Number(targetProd.stock) })
+                                .eq('id', item.id);
+                            if (stockError) throw stockError;
                         }
                     }
 
                     // Insert Transaction in Supabase
-                    await supabaseClient.from('transactions').insert({
+                    const { error: trxError } = await supabaseClient.from('transactions').insert({
                         id: trxId,
                         timestamp: newTransaction.timestamp.toISOString(),
                         items: JSON.stringify(cart),
@@ -1292,9 +1243,18 @@
                         paid_amount: cashReceived,
                         change: change
                     });
+                    if (trxError) throw trxError;
 
                 } catch (err) {
                     console.error("Gagal menyimpan ke Supabase:", err);
+                    cart.forEach(item => {
+                        const product = products.find(p => Number(p.id) === Number(item.id));
+                        if (product) product.stock += Number(item.qty);
+                    });
+                    renderInventoryTable();
+                    renderPosProducts();
+                    showToast(`Transaksi gagal disimpan: ${err.message || 'Error database'}`, 'danger');
+                    return;
                 }
             }
 
@@ -1314,14 +1274,17 @@
         }
 
         function renderInventoryTable() {
-            const searchEl = document.getElementById('inventory-search');
-            const categoryEl = document.getElementById('inventory-category-filter');
+            const searchQuery = document.getElementById('inventory-search').value.trim().toLowerCase();
+            let categoryFilter = document.getElementById('inventory-category-filter').value || 'all';
             const tbody = document.getElementById('inventory-table-body');
-            if (!tbody || !categoryEl) return;
 
-            const searchQuery = String(searchEl?.value || '').trim().toLowerCase();
-            let categoryFilter = categoryEl.value || 'all';
-            products = products.map(normalizeProductRecord);
+            products = products.map(p => ({
+                ...p,
+                stock: Number(p.stock) || 0,
+                minStock: Number(p.minStock) || 0,
+                buyPrice: Number(p.buyPrice) || 0,
+                sellPrice: Number(p.sellPrice) || 0
+            }));
 
             const categories = ['all', ...new Set(products.map(p => p.category))];
             const selectEl = document.getElementById('inventory-category-filter');
@@ -1331,7 +1294,7 @@
 
             const filtered = products.filter(p => {
                 const matchCat = categoryFilter === 'all' || p.category === categoryFilter;
-                const matchSearch = String(p.name || '').toLowerCase().includes(searchQuery) || String(p.sku || '').toLowerCase().includes(searchQuery);
+                const matchSearch = p.name.toLowerCase().includes(searchQuery) || p.sku.toLowerCase().includes(searchQuery);
                 return matchCat && matchSearch;
             });
 
@@ -1352,15 +1315,12 @@
 
             tbody.innerHTML = filtered.map(p => {
                 let stockStatusBadge = '';
-                const currentStock = Number(p.stock) || 0;
-                const minimumStock = Number(p.minStock) || 0;
-
-                if (currentStock === 0) {
+                if (p.stock === 0) {
                     stockStatusBadge = `<span class="px-2.5 py-1 bg-rose-100 text-rose-700 font-bold text-[11px] rounded-full">Habis (0)</span>`;
-                } else if (currentStock <= minimumStock) {
-                    stockStatusBadge = `<span class="px-2.5 py-1 bg-amber-100 text-amber-700 font-bold text-[11px] rounded-full">Menipis (${currentStock})</span>`;
+                } else if (p.stock <= (Number(p.minStock) || 0)) {
+                    stockStatusBadge = `<span class="px-2.5 py-1 bg-amber-100 text-amber-700 font-bold text-[11px] rounded-full">Menipis (${p.stock})</span>`;
                 } else {
-                    stockStatusBadge = `<span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 font-bold text-[11px] rounded-full">Aman (${currentStock})</span>`;
+                    stockStatusBadge = `<span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 font-bold text-[11px] rounded-full">Aman (${p.stock})</span>`;
                 }
 
                 return `
@@ -1383,7 +1343,8 @@
                         <td class="py-3 px-4">${stockStatusBadge}</td>
                         <td class="py-3 px-4 text-center">
                             <div class="flex items-center justify-center space-x-2">
-                                <button onclick="quickAdjustStock(${p.id}, 5)" title="Tambah 5 Stok" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">+5</button>
+                                <button onclick="quickAdjustStock(${p.id}, 5)" title="Tambah 5 Stok" class="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition">+5</button>
+                                <button onclick="openStockModal(${p.id})" title="Kelola Stok" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg text-xs transition"><i class="fa-solid fa-boxes-stacked"></i></button>
                                 <button onclick="openEditProductModal(${p.id})" title="Edit Produk" class="p-1.5 text-brand-600 hover:bg-brand-50 rounded-lg text-xs transition"><i class="fa-solid fa-pen-to-square"></i></button>
                                 <button onclick="deleteProduct(${p.id})" title="Hapus Produk" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs transition"><i class="fa-solid fa-trash-can"></i></button>
                             </div>
@@ -1718,6 +1679,364 @@
             });
         }
 
+
+        // ==========================================================
+        // STOCK MANAGEMENT
+        // ==========================================================
+        function openStockModal(id) {
+            const product = products.find(p => Number(p.id) === Number(id));
+            if (!product) return showToast('Produk tidak ditemukan.', 'danger');
+
+            activeStockProductId = Number(id);
+            stockAction = 'add';
+            document.getElementById('stock-product-id').value = String(id);
+            document.getElementById('stock-modal-product').innerText = `${product.name} • ${product.sku || '-'}`;
+            document.getElementById('stock-current-value').innerText = Number(product.stock) || 0;
+            document.getElementById('stock-adjust-qty').value = '1';
+            document.getElementById('stock-adjust-reason').value = '';
+            selectStockAction('add');
+            document.getElementById('modal-stock').classList.remove('hidden');
+        }
+
+        function closeStockModal() {
+            document.getElementById('modal-stock').classList.add('hidden');
+            activeStockProductId = null;
+        }
+
+        function selectStockAction(action) {
+            stockAction = action;
+            document.querySelectorAll('.stock-action-btn').forEach(btn => {
+                btn.classList.remove('border-emerald-500','bg-emerald-50','text-emerald-700','border-rose-500','bg-rose-50','text-rose-700','border-brand-500','bg-brand-50','text-brand-700');
+                btn.classList.add('border-slate-200','text-slate-700');
+            });
+
+            const map = {
+                add: ['stock-action-add','border-emerald-500','bg-emerald-50','text-emerald-700'],
+                subtract: ['stock-action-subtract','border-rose-500','bg-rose-50','text-rose-700'],
+                set: ['stock-action-set','border-brand-500','bg-brand-50','text-brand-700']
+            };
+            const cfg = map[action];
+            const btn = document.getElementById(cfg[0]);
+            if (btn) {
+                btn.classList.remove('border-slate-200','text-slate-700');
+                btn.classList.add(cfg[1],cfg[2],cfg[3]);
+            }
+        }
+
+        async function handleStockAdjustment(event) {
+            event.preventDefault();
+            const productId = Number(document.getElementById('stock-product-id').value);
+            const product = products.find(p => Number(p.id) === productId);
+            if (!product) return showToast('Produk tidak ditemukan.', 'danger');
+
+            const qty = Number(document.getElementById('stock-adjust-qty').value);
+            const reason = document.getElementById('stock-adjust-reason').value.trim() || (
+                stockAction === 'add' ? 'Restock barang' :
+                stockAction === 'subtract' ? 'Pengurangan stok' : 'Penyesuaian stok'
+            );
+
+            if (!Number.isInteger(qty) || qty < 0) {
+                return showToast('Jumlah harus berupa angka bulat 0 atau lebih.', 'danger');
+            }
+
+            const oldStock = Number(product.stock) || 0;
+            let newStock = oldStock;
+
+            if (stockAction === 'add') newStock = oldStock + qty;
+            if (stockAction === 'subtract') newStock = Math.max(0, oldStock - qty);
+            if (stockAction === 'set') newStock = qty;
+
+            if (newStock === oldStock) {
+                return showToast('Tidak ada perubahan stok.', 'info');
+            }
+
+            if (isSupabaseConnected && supabaseClient) {
+                const { error } = await supabaseClient
+                    .from('products')
+                    .update({ stock: newStock })
+                    .eq('id', productId);
+
+                if (error) {
+                    console.error('Stock adjustment error:', error);
+                    return showToast(`Gagal memperbarui stok: ${error.message}`, 'danger');
+                }
+            }
+
+            product.stock = newStock;
+
+            const movement = {
+                id: `STK-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+                productId,
+                productName: product.name,
+                oldStock,
+                change: newStock - oldStock,
+                newStock,
+                type: stockAction === 'add' ? 'Restock' : stockAction === 'subtract' ? 'Pengurangan' : 'Penyesuaian',
+                reason,
+                timestamp: new Date()
+            };
+            stockMovements.unshift(movement);
+
+            // Persist movement when a stock_movements table exists.
+            if (isSupabaseConnected && supabaseClient) {
+                const { error: movementError } = await supabaseClient.from('stock_movements').insert({
+                    product_id: productId,
+                    product_name: product.name,
+                    stock_before: oldStock,
+                    change_qty: newStock - oldStock,
+                    stock_after: newStock,
+                    movement_type: movement.type,
+                    reason: reason,
+                    created_at: movement.timestamp.toISOString()
+                });
+                if (movementError) {
+                    // Stock itself succeeded, so don't roll it back just because
+                    // optional history table is not yet created.
+                    console.warn('Stock movement history not saved:', movementError.message);
+                }
+            }
+
+            closeStockModal();
+            renderInventoryTable();
+            renderPosProducts();
+            updateLowStockBadge();
+            showToast(`Stok ${product.name} berhasil menjadi ${newStock}.`);
+        }
+
+        async function openStockHistoryModal(productId = null) {
+            const product = productId ? products.find(p => Number(p.id) === Number(productId)) : null;
+            document.getElementById('stock-history-product').innerText = product ? product.name : 'Semua Produk';
+
+            let rows = [];
+
+            if (isSupabaseConnected && supabaseClient) {
+                const query = supabaseClient.from('stock_movements').select('*').order('created_at', { ascending: false }).limit(200);
+                const result = productId ? await query.eq('product_id', Number(productId)) : await query;
+                if (!result.error && result.data) {
+                    rows = result.data.map(m => ({
+                        productName: m.product_name,
+                        oldStock: Number(m.stock_before) || 0,
+                        change: Number(m.change_qty) || 0,
+                        newStock: Number(m.stock_after) || 0,
+                        type: m.movement_type || 'Perubahan',
+                        reason: m.reason || '-',
+                        timestamp: new Date(m.created_at)
+                    }));
+                }
+            }
+
+            if (!rows.length) {
+                rows = stockMovements.filter(m => !productId || Number(m.productId) === Number(productId));
+            }
+
+            const container = document.getElementById('stock-history-list');
+            if (!rows.length) {
+                container.innerHTML = `<div class="py-10 text-center text-slate-400 text-sm">Belum ada riwayat perubahan stok.</div>`;
+            } else {
+                container.innerHTML = `
+                    <div class="space-y-2">
+                        ${rows.map(m => `
+                            <div class="border border-slate-100 rounded-xl p-3 flex items-center justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="font-bold text-xs text-slate-800 truncate">${m.productName || '-'}</p>
+                                    <p class="text-[11px] text-slate-500">${m.type} • ${m.reason || '-'}</p>
+                                    <p class="text-[10px] text-slate-400">${new Date(m.timestamp).toLocaleString('id-ID')}</p>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <p class="font-extrabold ${m.change >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.change >= 0 ? '+' : ''}${m.change}</p>
+                                    <p class="text-[10px] text-slate-400">${m.oldStock} → ${m.newStock}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            document.getElementById('modal-stock-history').classList.remove('hidden');
+        }
+
+        function closeStockHistoryModal() {
+            document.getElementById('modal-stock-history').classList.add('hidden');
+        }
+
+        // ==========================================================
+        // REFUND
+        // ==========================================================
+        function getRefundedQty(transaction, itemIndex) {
+            return Number(transaction?.refunds?.reduce((sum, r) => sum + (Number(r.items?.[itemIndex]?.qty) || 0), 0)) || 0;
+        }
+
+        function openRefundModal(trxId) {
+            const trx = transactions.find(t => String(t.id) === String(trxId));
+            if (!trx) return showToast('Transaksi tidak ditemukan.', 'danger');
+
+            activeRefundTransactionId = trx.id;
+            document.getElementById('refund-modal-id').innerText = `Faktur ${trx.id}`;
+
+            const container = document.getElementById('refund-items-container');
+            container.innerHTML = trx.items.map((item, index) => {
+                const alreadyRefunded = getRefundedQty(trx, index);
+                const available = Math.max(0, Number(item.qty) - alreadyRefunded);
+                return `
+                    <div class="border border-slate-200 rounded-xl p-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="font-bold text-sm text-slate-800 truncate">${item.name}</p>
+                                <p class="text-[11px] text-slate-500">${formatRp(item.price)} × ${available} tersedia refund</p>
+                            </div>
+                            <input id="refund-qty-${index}" data-index="${index}" data-price="${Number(item.price)||0}" type="number" min="0" max="${available}" value="0"
+                                oninput="updateRefundTotal()"
+                                class="w-20 px-2 py-2 border border-slate-200 rounded-lg text-sm text-center font-bold">
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('refund-reason').value = '';
+            updateRefundTotal();
+            document.getElementById('modal-refund').classList.remove('hidden');
+        }
+
+        function updateRefundTotal() {
+            const trx = transactions.find(t => String(t.id) === String(activeRefundTransactionId));
+            if (!trx) return;
+
+            let total = 0;
+            trx.items.forEach((item, index) => {
+                const input = document.getElementById(`refund-qty-${index}`);
+                if (input) {
+                    const qty = Math.max(0, Math.min(Number(input.max), Number(input.value) || 0));
+                    input.value = qty;
+                    total += qty * (Number(item.price) || 0);
+                }
+            });
+            document.getElementById('refund-total').innerText = formatRp(total);
+        }
+
+        function closeRefundModal() {
+            document.getElementById('modal-refund').classList.add('hidden');
+            activeRefundTransactionId = null;
+        }
+
+        async function processRefund() {
+            const trx = transactions.find(t => String(t.id) === String(activeRefundTransactionId));
+            if (!trx) return;
+
+            const reason = document.getElementById('refund-reason').value.trim() || 'Refund pelanggan';
+            const refundItems = [];
+            let refundTotal = 0;
+
+            trx.items.forEach((item, index) => {
+                const input = document.getElementById(`refund-qty-${index}`);
+                const qty = Math.max(0, Math.min(Number(input?.max) || 0, Number(input?.value) || 0));
+                if (qty > 0) {
+                    refundItems.push({
+                        id: item.id,
+                        name: item.name,
+                        price: Number(item.price) || 0,
+                        buyPrice: Number(item.buyPrice) || 0,
+                        qty
+                    });
+                    refundTotal += qty * (Number(item.price) || 0);
+                }
+            });
+
+            if (!refundItems.length) {
+                return showToast('Pilih minimal 1 item untuk refund.', 'danger');
+            }
+
+            // Update stock first, and rollback local changes if DB update fails.
+            const changedProducts = [];
+            try {
+                for (const item of refundItems) {
+                    const product = products.find(p => Number(p.id) === Number(item.id));
+                    if (!product) throw new Error(`Produk "${item.name}" tidak ditemukan.`);
+
+                    const before = Number(product.stock) || 0;
+                    const after = before + Number(item.qty);
+
+                    if (isSupabaseConnected && supabaseClient) {
+                        const { error } = await supabaseClient
+                            .from('products')
+                            .update({ stock: after })
+                            .eq('id', product.id);
+                        if (error) throw error;
+                    }
+
+                    product.stock = after;
+                    changedProducts.push({ product, before, after, qty: item.qty });
+                }
+
+                const refundRecord = {
+                    id: `REF-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+                    originalTransactionId: trx.id,
+                    timestamp: new Date(),
+                    items: refundItems,
+                    total: refundTotal,
+                    reason
+                };
+
+                // Keep refund information attached to the original transaction locally.
+                trx.refunds = trx.refunds || [];
+                trx.refunds.push(refundRecord);
+
+                // Adjust transaction's net total.
+                trx.refundedTotal = (Number(trx.refundedTotal) || 0) + refundTotal;
+                trx.netTotal = Math.max(0, (Number(trx.total) || 0) - trx.refundedTotal);
+
+                // Persist transaction update if the table supports JSON items.
+                if (isSupabaseConnected && supabaseClient) {
+                    const { error: updateTrxError } = await supabaseClient
+                        .from('transactions')
+                        .update({
+                            total: trx.netTotal,
+                            refund_amount: trx.refundedTotal,
+                            refund_items: JSON.stringify(trx.refunds),
+                            refund_reason: reason,
+                            refunded_at: refundRecord.timestamp.toISOString(),
+                            status: trx.netTotal <= 0 ? 'refunded' : 'partially_refunded'
+                        })
+                        .eq('id', trx.id);
+
+                    if (updateTrxError) {
+                        // Fallback: if the database schema has no refund columns,
+                        // keep the local record and tell the user what to migrate.
+                        console.warn('Refund columns belum tersedia:', updateTrxError.message);
+                    }
+
+                    // Optional stock movement rows for the refund.
+                    for (const item of refundItems) {
+                        await supabaseClient.from('stock_movements').insert({
+                            product_id: item.id,
+                            product_name: item.name,
+                            stock_before: changedProducts.find(x => Number(x.product.id) === Number(item.id))?.before || 0,
+                            change_qty: item.qty,
+                            stock_after: changedProducts.find(x => Number(x.product.id) === Number(item.id))?.after || 0,
+                            movement_type: 'Refund',
+                            reason,
+                            created_at: refundRecord.timestamp.toISOString()
+                        });
+                    }
+                }
+
+                closeRefundModal();
+                renderInventoryTable();
+                renderPosProducts();
+                renderReportsView();
+                showToast(`Refund ${formatRp(refundTotal)} berhasil. Stok dikembalikan.`);
+            } catch (err) {
+                // Rollback any stock changes already made in this operation.
+                for (const changed of changedProducts) {
+                    changed.product.stock = changed.before;
+                    if (isSupabaseConnected && supabaseClient) {
+                        await supabaseClient.from('products').update({ stock: changed.before }).eq('id', changed.product.id);
+                    }
+                }
+                console.error('Refund error:', err);
+                showToast(`Refund gagal: ${err.message || 'Terjadi kesalahan.'}`, 'danger');
+            }
+        }
+
         function getMonthKey(date = new Date()) {
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
@@ -1808,7 +2127,7 @@
             const productSalesMap = {};
 
             filteredTrx.forEach(trx => {
-                totalRevenue += Number(trx.total) || 0;
+                totalRevenue += Number(trx.netTotal ?? trx.total) || 0;
                 (trx.items || []).forEach(item => {
                     const itemCost = (Number(item.buyPrice) || 0) * (Number(item.qty) || 0);
                     totalCost += itemCost;
@@ -1875,9 +2194,14 @@
                         </td>
                         <td class="py-3 px-4 text-xs font-bold text-slate-900">${formatRp(trx.total)}</td>
                         <td class="py-3 px-4 text-center">
-                            <button onclick="openDetailModal('${trx.id}')" class="px-3 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand-600 text-slate-600 font-semibold text-xs rounded-lg transition">
-                                Detail
-                            </button>
+                            <div class="flex items-center justify-center gap-1.5">
+                                <button onclick="openDetailModal('${trx.id}')" class="px-3 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand-600 text-slate-600 font-semibold text-xs rounded-lg transition">
+                                    Detail
+                                </button>
+                                <button onclick="openRefundModal('${trx.id}')" class="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold text-xs rounded-lg transition">
+                                    Refund
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -1898,7 +2222,7 @@
                 labels = Array.from({ length: 12 }, (_, i) => new Date(year, i, 1).toLocaleDateString('id-ID', { month: 'short' }));
                 dataPoints = Array.from({ length: 12 }, (_, monthIdx) =>
                     trxList.filter(t => new Date(t.timestamp).getMonth() === monthIdx)
-                        .reduce((sum, t) => sum + (Number(t.total) || 0), 0)
+                        .reduce((sum, t) => sum + (Number(t.netTotal ?? t.total) || 0), 0)
                 );
             } else {
                 const [year, month] = selectedReportMonth.split('-').map(Number);
@@ -1909,7 +2233,7 @@
                     return trxList.filter(t => {
                         const d = new Date(t.timestamp);
                         return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === dayNum;
-                    }).reduce((sum, t) => sum + (Number(t.total) || 0), 0);
+                    }).reduce((sum, t) => sum + (Number(t.netTotal ?? t.total) || 0), 0);
                 });
             }
 
@@ -2025,6 +2349,15 @@
                     <span>Metode: <strong>${trx.paymentMethod}</strong></span>
                     <span>Kembalian: <strong>${formatRp(trx.change)}</strong></span>
                 </div>
+                ${Number(trx.refundedTotal || 0) > 0 ? `
+                    <div class="bg-rose-50 p-3 rounded-xl text-xs text-rose-800">
+                        <div class="flex justify-between"><span>Total refund</span><strong>${formatRp(trx.refundedTotal)}</strong></div>
+                        <div class="flex justify-between mt-1"><span>Total bersih</span><strong>${formatRp(trx.netTotal ?? (trx.total - trx.refundedTotal))}</strong></div>
+                    </div>
+                ` : ''}
+                <button onclick="openRefundModal('${trx.id}')" class="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition">
+                    <i class="fa-solid fa-rotate-left mr-1"></i> Refund Item
+                </button>
             `;
 
             document.getElementById('modal-detail').classList.remove('hidden');
@@ -2080,5 +2413,159 @@
             renderReportsView();
         }
     </script>
+
+    <!-- MODAL 5: STOCK ADJUSTMENT -->
+    <div id="modal-stock" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-base">Kelola Stok</h3>
+                    <p id="stock-modal-product" class="text-[11px] text-slate-400 mt-0.5">-</p>
+                </div>
+                <button onclick="closeStockModal()" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="form-stock" onsubmit="handleStockAdjustment(event)" class="p-6 space-y-4">
+                <input type="hidden" id="stock-product-id">
+                <div class="grid grid-cols-3 gap-2">
+                    <button type="button" onclick="selectStockAction('add')" id="stock-action-add" class="stock-action-btn py-2.5 rounded-xl border border-emerald-500 bg-emerald-50 text-emerald-700 text-xs font-bold">
+                        <i class="fa-solid fa-plus mr-1"></i> Tambah
+                    </button>
+                    <button type="button" onclick="selectStockAction('subtract')" id="stock-action-subtract" class="stock-action-btn py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold">
+                        <i class="fa-solid fa-minus mr-1"></i> Kurangi
+                    </button>
+                    <button type="button" onclick="selectStockAction('set')" id="stock-action-set" class="stock-action-btn py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold">
+                        <i class="fa-solid fa-sliders mr-1"></i> Atur
+                    </button>
+                </div>
+
+                <div class="bg-slate-50 rounded-xl p-4 flex items-center justify-between">
+                    <span class="text-xs text-slate-500">Stok saat ini</span>
+                    <strong id="stock-current-value" class="text-xl text-slate-900">0</strong>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Jumlah</label>
+                    <input type="number" id="stock-adjust-qty" min="0" step="1" value="1" required
+                        class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Alasan</label>
+                    <input type="text" id="stock-adjust-reason" maxlength="120" placeholder="Contoh: Barang datang / rusak / koreksi stok"
+                        class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="closeStockModal()" class="px-4 py-2 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Batal</button>
+                    <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 6: REFUND -->
+    <div id="modal-refund" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-base">Refund Transaksi</h3>
+                    <p id="refund-modal-id" class="text-[11px] text-slate-400 mt-0.5">-</p>
+                </div>
+                <button onclick="closeRefundModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="refund-items-container" class="p-5 overflow-y-auto space-y-3"></div>
+            <div class="px-5 py-4 border-t border-slate-100 bg-slate-50">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Alasan Refund</label>
+                <input id="refund-reason" type="text" maxlength="160" placeholder="Contoh: Salah pesanan / barang rusak"
+                    class="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                <div class="flex justify-between items-center mt-3">
+                    <div>
+                        <span class="text-xs text-slate-500">Total refund</span>
+                        <div id="refund-total" class="text-lg font-extrabold text-rose-600">Rp 0</div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="closeRefundModal()" class="px-4 py-2 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Batal</button>
+                        <button onclick="processRefund()" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl">
+                            <i class="fa-solid fa-rotate-left mr-1"></i> Proses Refund
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 7: STOCK MOVEMENT -->
+    <div id="modal-stock-history" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-base">Riwayat Perubahan Stok</h3>
+                    <p id="stock-history-product" class="text-[11px] text-slate-400 mt-0.5">-</p>
+                </div>
+                <button onclick="closeStockHistoryModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="stock-history-list" class="p-5 overflow-y-auto"></div>
+        </div>
+    </div>
+
+
+    <script>
+        // ==========================================================
+        // PWA / INSTALL APP
+        // ==========================================================
+        (function setupInstallableApp() {
+            const manifest = {
+                name: "KasirKu POS Pro",
+                short_name: "KasirKu",
+                start_url: "./",
+                scope: "./",
+                display: "standalone",
+                background_color: "#0f172a",
+                theme_color: "#0ea5e9",
+                description: "Sistem kasir dan manajemen stok"
+            };
+
+            const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+            const manifestUrl = URL.createObjectURL(manifestBlob);
+            const link = document.createElement('link');
+            link.rel = 'manifest';
+            link.href = manifestUrl;
+            document.head.appendChild(link);
+
+            const metaTheme = document.createElement('meta');
+            metaTheme.name = 'theme-color';
+            metaTheme.content = '#0ea5e9';
+            document.head.appendChild(metaTheme);
+
+            window.addEventListener('beforeinstallprompt', (event) => {
+                event.preventDefault();
+                deferredInstallPrompt = event;
+
+                if (!document.getElementById('install-app-btn')) {
+                    const btn = document.createElement('button');
+                    btn.id = 'install-app-btn';
+                    btn.className = 'fixed bottom-5 left-5 z-40 px-4 py-3 bg-slate-900 text-white rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2 hover:bg-slate-800 transition';
+                    btn.innerHTML = '<i class="fa-solid fa-download"></i><span>Install Aplikasi</span>';
+                    btn.onclick = async () => {
+                        if (!deferredInstallPrompt) return;
+                        deferredInstallPrompt.prompt();
+                        await deferredInstallPrompt.userChoice;
+                        deferredInstallPrompt = null;
+                        btn.remove();
+                    };
+                    document.body.appendChild(btn);
+                }
+            });
+
+            window.addEventListener('appinstalled', () => {
+                deferredInstallPrompt = null;
+                document.getElementById('install-app-btn')?.remove();
+                if (typeof showToast === 'function') showToast('KasirKu berhasil dipasang sebagai aplikasi!');
+            });
+        })();
+    </script>
+
 </body>
 </html>
