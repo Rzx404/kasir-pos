@@ -115,7 +115,7 @@
 
         <!-- SECTION 1: POS / KASIR -->
         <section id="section-pos" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Left: Catalog & Search -->
+            <!-- Left: Catalog & Search (7 Cols on desktop) -->
             <div class="lg:col-span-7 xl:col-span-8 flex flex-col space-y-4">
                 
                 <!-- Search & Filter Bar -->
@@ -137,7 +137,7 @@
                 </div>
             </div>
 
-            <!-- Right: Cart & Transaction Checkout -->
+            <!-- Right: Cart & Transaction Checkout (5 Cols on desktop) -->
             <div class="lg:col-span-5 xl:col-span-4">
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 flex flex-col h-full max-h-[calc(100vh-140px)] sticky top-20">
                     <!-- Cart Header -->
@@ -541,18 +541,18 @@
         // ==========================================
         // KONFIGURASI SUPABASE DATABASE
         // ==========================================
-        const SUPABASE_URL = 'https://supabase.com/dashboard/project/mfmvevzsiinqafmdrmju/sql/bc3fffcb-0616-4cf9-ae20-eae396df2783';
-        const SUPABASE_KEY = 'sb_publishable_P-c3VwW2P4Tt7SzafhM9tw_Xb5Zp0WE';
+        const SUPABASE_URL = 'https://supabase.com/dashboard/project/mfmvevzsiinqafmdrmju/settings/api-keys';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mbXZldnpzaWlucWFmbWRybWp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NDU1NTMsImV4cCI6MjEwMjAyMTU1M30.UeYHdRXgHcuIJnk9__P5fKw7ktS9uDLz-135nZPs-oA';
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let products = [];
         let cart = [];
         let selectedPayment = 'Tunai';
-        let currentReportPeriod = 'today'; // 'today', 'month', 'year'
+        let currentReportPeriod = 'today';
         let salesChartInstance = null;
         let transactions = [];
 
-        // Fetch Data dari Supabase Cloud
+        // Synchronize data with Supabase
         async function syncDataFromSupabase() {
             showToast('Menyinkronkan data...', 'info');
             await fetchProductsFromSupabase();
@@ -902,7 +902,7 @@
             const trxId = 'TRX-' + Math.floor(10000 + Math.random() * 90000);
             const now = new Date();
 
-            // 1. SIMPAN TRANSAKSI KE SUPABASE
+            // 1. Simpan Transaksi ke Supabase
             const { error: errorTx } = await supabase.from('transactions').insert([{
                 id: trxId,
                 timestamp: now.toISOString(),
@@ -920,7 +920,7 @@
                 return;
             }
 
-            // 2. OTOMATIS POTONG STOK DI SUPABASE
+            // 2. Otomatis Potong Stok di Supabase
             for (const cartItem of cart) {
                 const product = products.find(p => p.id === cartItem.id);
                 if (product) {
@@ -1095,7 +1095,7 @@
             const icon = category === 'Minuman' ? 'fa-mug-hot' : (category === 'Makanan' ? 'fa-utensils' : 'fa-box');
 
             if (id) {
-                // Update ke Supabase
+                // Update
                 const { error } = await supabase.from('products').update({
                     name, category, sku, buy_price: buyPrice, sell_price: sellPrice, stock, icon
                 }).eq('id', id);
@@ -1103,7 +1103,7 @@
                 if (error) return showToast('Gagal memperbarui produk: ' + error.message, 'danger');
                 showToast('Produk berhasil diperbarui');
             } else {
-                // Insert Baru ke Supabase
+                // Insert
                 const { error } = await supabase.from('products').insert([{
                     name, category, sku, buy_price: buyPrice, sell_price: sellPrice, stock, icon
                 }]);
