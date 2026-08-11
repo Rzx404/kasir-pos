@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Chart.js for Reports -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Supabase JS Client -->
+    <!-- Supabase JS Client CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         tailwind.config = {
@@ -102,8 +102,12 @@
 
                 <!-- Action Controls -->
                 <div class="flex items-center space-x-2">
-                    <button onclick="syncDataFromSupabase()" title="Sinkronkan Data" class="text-slate-400 hover:text-brand-400 p-2 rounded-lg hover:bg-slate-800 transition">
-                        <i class="fa-solid fa-rotate"></i>
+                    <button onclick="openSupabaseModal()" id="supabase-status-btn" title="Pengaturan Supabase Database" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" id="supabase-status-dot"></span>
+                        <span id="supabase-status-text">Supabase: Aktif</span>
+                    </button>
+                    <button onclick="confirmResetDemoData()" title="Reset Data Sample" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg hover:bg-slate-800 transition">
+                        <i class="fa-solid fa-rotate-left"></i>
                     </button>
                 </div>
             </div>
@@ -115,16 +119,14 @@
 
         <!-- SECTION 1: POS / KASIR -->
         <section id="section-pos" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Left: Catalog & Search (7 Cols on desktop) -->
+            <!-- Left: Catalog & Search -->
             <div class="lg:col-span-7 xl:col-span-8 flex flex-col space-y-4">
-                
                 <!-- Search & Filter Bar -->
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col sm:flex-row gap-3 items-center justify-between">
                     <div class="relative w-full sm:w-72">
                         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
                         <input type="text" id="pos-search" oninput="renderPosProducts()" placeholder="Cari barang atau kode barcode..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition">
                     </div>
-                    
                     <!-- Categories Horizontal Filter -->
                     <div class="flex items-center space-x-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0" id="category-filter-container">
                         <!-- Populated by JS -->
@@ -137,7 +139,7 @@
                 </div>
             </div>
 
-            <!-- Right: Cart & Transaction Checkout (5 Cols on desktop) -->
+            <!-- Right: Cart & Transaction Checkout -->
             <div class="lg:col-span-5 xl:col-span-4">
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 flex flex-col h-full max-h-[calc(100vh-140px)] sticky top-20">
                     <!-- Cart Header -->
@@ -290,7 +292,6 @@
 
         <!-- SECTION 3: LAPORAN & RIWAYAT PENJUALAN -->
         <section id="section-reports" class="hidden space-y-6">
-            
             <!-- Time Period Navigation Tabs & Filter Header -->
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -395,7 +396,6 @@
                 </div>
             </div>
         </section>
-
     </main>
 
     <!-- MODAL 1: ADD/EDIT PRODUCT -->
@@ -534,77 +534,362 @@
         </div>
     </div>
 
+    <!-- MODAL 4: CONFIRMATION PROMPT -->
+    <div id="modal-confirm" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden p-6 text-center space-y-4">
+            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-circle-exclamation"></i>
+            </div>
+            <div>
+                <h3 id="confirm-modal-title" class="font-bold text-base text-slate-800">Konfirmasi Tindakan</h3>
+                <p id="confirm-modal-msg" class="text-xs text-slate-500 mt-1">Apakah Anda yakin ingin melanjutkan?</p>
+            </div>
+            <div class="flex space-x-3 pt-2">
+                <button onclick="closeConfirmModal(false)" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">Batal</button>
+                <button id="confirm-modal-ok-btn" onclick="closeConfirmModal(true)" class="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition">Ya, Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification Container -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
+    <!-- MODAL 5: SUPABASE CONFIGURATION & SQL SCHEMA GUIDE -->
+    <div id="modal-supabase" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 bg-emerald-700 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-database text-lg"></i>
+                    <h3 class="font-bold text-base">Konfigurasi Supabase Database</h3>
+                </div>
+                <button onclick="closeSupabaseModal()" class="text-slate-300 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <div class="p-6 space-y-5 overflow-y-auto flex-1 text-slate-700 text-xs sm:text-sm">
+                <!-- Credentials Form -->
+                <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl space-y-3">
+                    <h4 class="font-bold text-emerald-900 text-sm flex items-center space-x-2">
+                        <i class="fa-solid fa-key"></i>
+                        <span>Kredensial Project Supabase</span>
+                    </h4>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">SUPABASE URL</label>
+                        <input type="text" id="supabase-url" placeholder="https://xyzcompany.supabase.co" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">SUPABASE ANON KEY</label>
+                        <input type="password" id="supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+                    <div class="flex items-center space-x-2 pt-1">
+                        <button onclick="saveSupabaseConfig()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5">
+                            <i class="fa-solid fa-plug"></i>
+                            <span>Hubungkan Supabase</span>
+                        </button>
+                        <button onclick="disconnectSupabase()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-xl transition">
+                            Gunakan Demo Mode
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SQL Schema Helper -->
+                <div class="space-y-2">
+                    <h4 class="font-bold text-slate-800 text-xs sm:text-sm flex items-center space-x-2">
+                        <i class="fa-solid fa-code"></i>
+                        <span>Struktur Tabel SQL Supabase (Jalankan di SQL Editor)</span>
+                    </h4>
+                    <p class="text-xs text-slate-500">Salin dan jalankan script SQL di bawah ini pada menu **SQL Editor** di dashboard Supabase Anda:</p>
+
+                    <div class="relative bg-slate-900 text-slate-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">
+                        <button onclick="copySqlSchema()" class="absolute top-2 right-2 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] rounded border border-slate-700 font-sans transition flex items-center space-x-1">
+                            <i class="fa-solid fa-copy"></i>
+                            <span>Salin SQL</span>
+                        </button>
+                        <pre id="sql-schema-code">-- 1. Tabel Produk
+CREATE TABLE IF NOT EXISTS products (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    buy_price NUMERIC DEFAULT 0,
+    sell_price NUMERIC DEFAULT 0,
+    stock INT DEFAULT 0,
+    sku TEXT UNIQUE,
+    icon TEXT DEFAULT 'fa-box'
+);
+
+-- 2. Tabel Transaksi
+CREATE TABLE IF NOT EXISTS transactions (
+    id TEXT PRIMARY KEY,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    items JSONB NOT NULL,
+    subtotal NUMERIC DEFAULT 0,
+    discount NUMERIC DEFAULT 0,
+    total NUMERIC DEFAULT 0,
+    payment_method TEXT,
+    paid_amount NUMERIC DEFAULT 0,
+    change NUMERIC DEFAULT 0
+);
+
+-- Matikan RLS untuk testing sederhana
+ALTER TABLE products DISABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 text-right">
+                <button onclick="closeSupabaseModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl">Tutup</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ==========================================
-        // KONFIGURASI SUPABASE DATABASE
+        // INITIAL STATE & SUPABASE CLIENT
         // ==========================================
-        const SUPABASE_URL = 'https://supabase.com/dashboard/project/mfmvevzsiinqafmdrmju/settings/api-keys';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mbXZldnpzaWlucWFmbWRybWp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NDU1NTMsImV4cCI6MjEwMjAyMTU1M30.UeYHdRXgHcuIJnk9__P5fKw7ktS9uDLz-135nZPs-oA';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let products = [];
+        let supabaseClient = null;
+        let isSupabaseConnected = false;
+        let onConfirmCallback = null;
+
+        const INITIAL_PRODUCTS = [
+            { id: 1, name: 'Kopi Milk Sugar', category: 'Minuman', buyPrice: 8000, sellPrice: 18000, stock: 35, sku: 'DRK-001', icon: 'fa-mug-hot' },
+            { id: 2, name: 'Teh Manis Dingin', category: 'Minuman', buyPrice: 2000, sellPrice: 6000, stock: 4, sku: 'DRK-002', icon: 'fa-glass-water' },
+            { id: 3, name: 'Nasi Goreng Spesial', category: 'Makanan', buyPrice: 12000, sellPrice: 25000, stock: 20, sku: 'FOD-001', icon: 'fa-utensils' },
+            { id: 4, name: 'Mie Goreng Telur', category: 'Makanan', buyPrice: 8000, sellPrice: 16000, stock: 15, sku: 'FOD-002', icon: 'fa-bowl-food' },
+            { id: 5, name: 'Air Mineral 600ml', category: 'Minuman', buyPrice: 2000, sellPrice: 4000, stock: 50, sku: 'DRK-003', icon: 'fa-bottle-water' },
+            { id: 6, name: 'Keripik Singkong', category: 'Cemilan', buyPrice: 5000, sellPrice: 10000, stock: 3, sku: 'SNK-001', icon: 'fa-cookie' },
+            { id: 7, name: 'Roti Bakar Cokelat', category: 'Makanan', buyPrice: 7000, sellPrice: 15000, stock: 12, sku: 'FOD-003', icon: 'fa-bread-slice' },
+            { id: 8, name: 'Sabun Cuci Tangan', category: 'Kebersihan', buyPrice: 9000, sellPrice: 14000, stock: 0, sku: 'CLN-001', icon: 'fa-soap' }
+        ];
+
+        let products = [...INITIAL_PRODUCTS];
         let cart = [];
         let selectedPayment = 'Tunai';
         let currentReportPeriod = 'today';
         let salesChartInstance = null;
         let transactions = [];
 
-        // Synchronize data with Supabase
-        async function syncDataFromSupabase() {
-            showToast('Menyinkronkan data...', 'info');
-            await fetchProductsFromSupabase();
-            await fetchTransactionsFromSupabase();
-            showToast('Data berhasil diperbarui', 'success');
+        function generateInitialHistory() {
+            const sampleTrx = [];
+            const now = new Date();
+
+            // Sample transactions for today
+            sampleTrx.push({
+                id: 'TRX-' + Math.floor(10000 + Math.random() * 90000),
+                timestamp: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 30),
+                items: [
+                    { id: 1, name: 'Kopi Milk Sugar', price: 18000, buyPrice: 8000, qty: 2 },
+                    { id: 3, name: 'Nasi Goreng Spesial', price: 25000, buyPrice: 12000, qty: 1 }
+                ],
+                subtotal: 61000,
+                discount: 0,
+                total: 61000,
+                paymentMethod: 'Tunai',
+                paidAmount: 100000,
+                change: 39000
+            });
+
+            sampleTrx.push({
+                id: 'TRX-' + Math.floor(10000 + Math.random() * 90000),
+                timestamp: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 14, 15),
+                items: [
+                    { id: 2, name: 'Teh Manis Dingin', price: 6000, buyPrice: 2000, qty: 3 },
+                    { id: 4, name: 'Mie Goreng Telur', price: 16000, buyPrice: 8000, qty: 2 }
+                ],
+                subtotal: 50000,
+                discount: 10,
+                total: 45000,
+                paymentMethod: 'QRIS',
+                paidAmount: 45000,
+                change: 0
+            });
+
+            // Past months this year transactions
+            for (let m = 1; m <= 5; m++) {
+                const pastMonthDate = new Date(now.getFullYear(), now.getMonth() - m, 15, 12, 0);
+                sampleTrx.push({
+                    id: 'TRX-' + Math.floor(10000 + Math.random() * 90000),
+                    timestamp: pastMonthDate,
+                    items: [
+                        { id: 3, name: 'Nasi Goreng Spesial', price: 25000, buyPrice: 12000, qty: 10 }
+                    ],
+                    subtotal: 250000,
+                    discount: 0,
+                    total: 250000,
+                    paymentMethod: 'Transfer',
+                    paidAmount: 250000,
+                    change: 0
+                });
+            }
+
+            return sampleTrx;
         }
 
-        async function fetchProductsFromSupabase() {
-            const { data, error } = await supabase.from('products').select('*').order('name');
-            if (error) {
-                console.error('Error fetching products:', error);
-                showToast('Gagal memuat produk dari database', 'danger');
-                return;
+        transactions = generateInitialHistory();
+
+        function initSupabaseClient() {
+            const url = localStorage.getItem('POS_SUPABASE_URL');
+            const key = localStorage.getItem('POS_SUPABASE_KEY');
+
+            const statusDot = document.getElementById('supabase-status-dot');
+            const statusText = document.getElementById('supabase-status-text');
+            const statusBtn = document.getElementById('supabase-status-btn');
+
+            if (url && key && window.supabase) {
+                try {
+                    supabaseClient = window.supabase.createClient(url, key);
+                    isSupabaseConnected = true;
+
+                    statusDot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                    statusText.innerText = "Supabase: Terhubung";
+                    statusBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition";
+
+                    document.getElementById('supabase-url').value = url;
+                    document.getElementById('supabase-key').value = key;
+
+                    fetchDataFromSupabase();
+                    return;
+                } catch (e) {
+                    console.error("Gagal inisialisasi Supabase:", e);
+                }
             }
-            products = data.map(p => ({
-                id: p.id,
+
+            isSupabaseConnected = false;
+            statusDot.className = "w-2 h-2 rounded-full bg-amber-400";
+            statusText.innerText = "Supabase: Demo Mode";
+            statusBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition";
+        }
+
+        async function fetchDataFromSupabase() {
+            if (!supabaseClient || !isSupabaseConnected) return;
+
+            try {
+                // Fetch Products
+                const { data: dbProducts, error: prodErr } = await supabaseClient
+                    .from('products')
+                    .select('*')
+                    .order('id', { ascending: true });
+
+                if (!prodErr && dbProducts) {
+                    if (dbProducts.length === 0) {
+                        await seedSupabaseInitialProducts();
+                    } else {
+                        products = dbProducts.map(p => ({
+                            id: p.id,
+                            name: p.name,
+                            category: p.category,
+                            buyPrice: Number(p.buy_price || 0),
+                            sellPrice: Number(p.sell_price || 0),
+                            stock: Number(p.stock || 0),
+                            sku: p.sku || `SKU-${p.id}`,
+                            icon: p.icon || 'fa-box'
+                        }));
+                        renderPosProducts();
+                        renderInventoryTable();
+                    }
+                }
+
+                // Fetch Transactions
+                const { data: dbTrx, error: trxErr } = await supabaseClient
+                    .from('transactions')
+                    .select('*')
+                    .order('timestamp', { ascending: false });
+
+                if (!trxErr && dbTrx) {
+                    transactions = dbTrx.map(t => ({
+                        id: t.id,
+                        timestamp: new Date(t.timestamp),
+                        items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items,
+                        subtotal: Number(t.subtotal || 0),
+                        discount: Number(t.discount || 0),
+                        total: Number(t.total || 0),
+                        paymentMethod: t.payment_method,
+                        paidAmount: Number(t.paid_amount || 0),
+                        change: Number(t.change || 0)
+                    }));
+                    renderReportsView();
+                }
+
+                showToast('Data berhasil disinkronisasi dari Supabase!', 'success');
+            } catch (err) {
+                console.error('Error fetching Supabase data:', err);
+                showToast('Gagal memuat data dari Supabase, menggunakan data lokal', 'danger');
+            }
+        }
+
+        async function seedSupabaseInitialProducts() {
+            if (!supabaseClient) return;
+            const records = INITIAL_PRODUCTS.map(p => ({
                 name: p.name,
                 category: p.category,
-                buyPrice: Number(p.buy_price),
-                sellPrice: Number(p.sell_price),
+                buy_price: p.buyPrice,
+                sell_price: p.sellPrice,
                 stock: p.stock,
-                sku: p.sku || 'SKU-' + p.id,
-                icon: p.icon || (p.category === 'Minuman' ? 'fa-mug-hot' : (p.category === 'Makanan' ? 'fa-utensils' : 'fa-box'))
+                sku: p.sku,
+                icon: p.icon
             }));
-            renderPosProducts();
-            renderInventoryTable();
+
+            const { data, error } = await supabaseClient.from('products').insert(records).select();
+            if (!error && data) {
+                products = data.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    category: p.category,
+                    buyPrice: Number(p.buy_price),
+                    sellPrice: Number(p.sell_price),
+                    stock: Number(p.stock),
+                    sku: p.sku,
+                    icon: p.icon
+                }));
+                renderPosProducts();
+                renderInventoryTable();
+            }
         }
 
-        async function fetchTransactionsFromSupabase() {
-            const { data, error } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
-            if (error) {
-                console.error('Error fetching transactions:', error);
-                showToast('Gagal memuat riwayat transaksi', 'danger');
+        function openSupabaseModal() {
+            document.getElementById('modal-supabase').classList.remove('hidden');
+        }
+
+        function closeSupabaseModal() {
+            document.getElementById('modal-supabase').classList.add('hidden');
+        }
+
+        function saveSupabaseConfig() {
+            const url = document.getElementById('supabase-url').value.trim();
+            const key = document.getElementById('supabase-key').value.trim();
+
+            if (!url || !key) {
+                showToast('Harap isi URL dan Anon Key Supabase!', 'danger');
                 return;
             }
-            transactions = data.map(t => ({
-                id: t.id,
-                timestamp: new Date(t.timestamp),
-                items: t.items,
-                subtotal: Number(t.subtotal),
-                discount: Number(t.discount),
-                total: Number(t.total),
-                paymentMethod: t.payment_method,
-                paidAmount: Number(t.paid_amount),
-                change: Number(t.change)
-            }));
-            renderReportsView();
+
+            localStorage.setItem('POS_SUPABASE_URL', url);
+            localStorage.setItem('POS_SUPABASE_KEY', key);
+
+            closeSupabaseModal();
+            initSupabaseClient();
         }
 
-        // ==========================================
-        // UI CORE & TAB SYSTEM
-        // ==========================================
+        function disconnectSupabase() {
+            localStorage.removeItem('POS_SUPABASE_URL');
+            localStorage.removeItem('POS_SUPABASE_KEY');
+            supabaseClient = null;
+            isSupabaseConnected = false;
+            closeSupabaseModal();
+            initSupabaseClient();
+            showToast('Beralih ke Demo Mode (Lokal)', 'info');
+        }
+
+        function copySqlSchema() {
+            const code = document.getElementById('sql-schema-code').innerText;
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('Script SQL berhasil disalin!');
+        }
 
         function updateClock() {
             const now = new Date();
@@ -661,9 +946,20 @@
             }, 3000);
         }
 
-        // ==========================================
-        // SECTION 1: POS / KASIR LOGIC
-        // ==========================================
+        function openConfirmModal(title, message, onConfirm) {
+            document.getElementById('confirm-modal-title').innerText = title;
+            document.getElementById('confirm-modal-msg').innerText = message;
+            onConfirmCallback = onConfirm;
+            document.getElementById('modal-confirm').classList.remove('hidden');
+        }
+
+        function closeConfirmModal(isConfirmed) {
+            document.getElementById('modal-confirm').classList.add('hidden');
+            if (isConfirmed && typeof onConfirmCallback === 'function') {
+                onConfirmCallback();
+            }
+            onConfirmCallback = null;
+        }
 
         let activePosCategory = 'all';
 
@@ -777,105 +1073,123 @@
         function updateCartQty(productId, delta) {
             const product = products.find(p => p.id === productId);
             const cartItem = cart.find(item => item.id === productId);
-
             if (!cartItem) return;
 
             const newQty = cartItem.qty + delta;
-
             if (newQty <= 0) {
-                cart = cart.filter(item => item.id !== productId);
-            } else if (product && newQty > product.stock) {
-                showToast(`Stok tidak mencukupi (Maks. ${product.stock})`, 'danger');
-            } else {
-                cartItem.qty = newQty;
+                removeFromCart(productId);
+                return;
             }
 
+            if (product && newQty > product.stock) {
+                showToast(`Batas stok tercapai (${product.stock} unit)`, 'danger');
+                return;
+            }
+
+            cartItem.qty = newQty;
+            renderCart();
+        }
+
+        function removeFromCart(productId) {
+            cart = cart.filter(item => item.id !== productId);
             renderCart();
         }
 
         function clearCart() {
-            if (cart.length === 0) return;
             cart = [];
             renderCart();
-            showToast('Keranjang telah dikosongkan', 'info');
         }
 
         function renderCart() {
-            const container = document.getElementById('cart-items-list');
+            const list = document.getElementById('cart-items-list');
+            const btnCheckout = document.getElementById('btn-checkout');
 
             if (cart.length === 0) {
-                container.innerHTML = `
-                    <div class="h-48 flex flex-col items-center justify-center text-slate-400 space-y-2">
-                        <i class="fa-solid fa-cart-arrow-down text-3xl"></i>
+                list.innerHTML = `
+                    <div class="py-12 text-center text-slate-400">
+                        <i class="fa-solid fa-cart-flatbed text-3xl mb-2"></i>
                         <p class="text-xs font-semibold">Keranjang masih kosong</p>
                     </div>
                 `;
-            } else {
-                container.innerHTML = cart.map(item => `
-                    <div class="pt-2 first:pt-0 flex items-center justify-between">
-                        <div class="flex-1 pr-2">
-                            <h4 class="font-bold text-xs text-slate-800">${item.name}</h4>
-                            <p class="text-[11px] text-slate-500">${formatRp(item.price)} x ${item.qty}</p>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <div class="flex items-center border border-slate-200 rounded-lg bg-slate-50">
-                                <button onclick="updateCartQty(${item.id}, -1)" class="w-6 h-6 flex items-center justify-center text-xs text-slate-600 hover:bg-slate-200 rounded-l-lg font-bold">-</button>
-                                <span class="w-6 text-center text-xs font-bold text-slate-800">${item.qty}</span>
-                                <button onclick="updateCartQty(${item.id}, 1)" class="w-6 h-6 flex items-center justify-center text-xs text-slate-600 hover:bg-slate-200 rounded-r-lg font-bold">+</button>
-                            </div>
-                            <span class="font-bold text-xs text-slate-900 w-16 text-right">${formatRp(item.price * item.qty)}</span>
-                        </div>
-                    </div>
-                `).join('');
+                if (btnCheckout) btnCheckout.disabled = true;
+                calculateCartTotals();
+                return;
             }
+
+            if (btnCheckout) btnCheckout.disabled = false;
+
+            list.innerHTML = cart.map(item => `
+                <div class="flex items-center justify-between py-2 text-xs">
+                    <div class="flex-1 pr-2">
+                        <p class="font-bold text-slate-800 line-clamp-1">${item.name}</p>
+                        <p class="text-slate-500 font-medium">${formatRp(item.price)} x ${item.qty} = <span class="text-slate-800 font-bold">${formatRp(item.price * item.qty)}</span></p>
+                    </div>
+                    <div class="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-lg">
+                        <button onclick="updateCartQty(${item.id}, -1)" class="w-5 h-5 bg-white hover:bg-slate-200 text-slate-700 rounded font-bold flex items-center justify-center shadow-xs transition">-</button>
+                        <span class="w-6 text-center font-bold text-slate-800">${item.qty}</span>
+                        <button onclick="updateCartQty(${item.id}, 1)" class="w-5 h-5 bg-white hover:bg-slate-200 text-slate-700 rounded font-bold flex items-center justify-center shadow-xs transition">+</button>
+                        <button onclick="removeFromCart(${item.id})" class="w-5 h-5 text-rose-500 hover:text-rose-700 rounded flex items-center justify-center ml-1 transition"><i class="fa-solid fa-trash-can text-[10px]"></i></button>
+                    </div>
+                </div>
+            `).join('');
 
             calculateCartTotals();
         }
 
         function calculateCartTotals() {
             const subtotal = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
-            const discountPercent = parseFloat(document.getElementById('cart-discount').value) || 0;
+            const discountInput = document.getElementById('cart-discount');
+            const discountPercent = Math.max(0, parseFloat(discountInput ? discountInput.value : 0) || 0);
             const discountAmount = subtotal * (discountPercent / 100);
-            const grandTotal = subtotal - discountAmount;
+            const grandTotal = Math.max(0, subtotal - discountAmount);
 
-            document.getElementById('cart-subtotal').innerText = formatRp(subtotal);
-            document.getElementById('cart-grand-total').innerText = formatRp(grandTotal);
+            const subtotalEl = document.getElementById('cart-subtotal');
+            const grandTotalEl = document.getElementById('cart-grand-total');
+
+            if (subtotalEl) subtotalEl.innerText = formatRp(subtotal);
+            if (grandTotalEl) grandTotalEl.innerText = formatRp(grandTotal);
 
             calculateChange();
-
-            const checkoutBtn = document.getElementById('btn-checkout');
-            checkoutBtn.disabled = cart.length === 0;
         }
 
         function selectPaymentMethod(method) {
             selectedPayment = method;
             document.querySelectorAll('.pay-method-btn').forEach(btn => {
-                btn.classList.remove('active-method', 'border-brand-500', 'bg-brand-50', 'text-brand-600');
+                btn.classList.remove('border-brand-500', 'bg-brand-50', 'text-brand-600', 'active-method');
                 btn.classList.add('border-slate-200', 'text-slate-700');
             });
 
             const activeBtn = document.getElementById(`pay-btn-${method}`);
-            activeBtn.classList.add('active-method', 'border-brand-500', 'bg-brand-50', 'text-brand-600');
+            if (activeBtn) {
+                activeBtn.classList.remove('border-slate-200', 'text-slate-700');
+                activeBtn.classList.add('border-brand-500', 'bg-brand-50', 'text-brand-600', 'active-method');
+            }
 
             const cashContainer = document.getElementById('cash-input-container');
-            if (method === 'Tunai') {
-                cashContainer.classList.remove('hidden');
-            } else {
-                cashContainer.classList.add('hidden');
+            if (cashContainer) {
+                if (method === 'Tunai') {
+                    cashContainer.classList.remove('hidden');
+                } else {
+                    cashContainer.classList.add('hidden');
+                }
             }
+            calculateChange();
         }
 
         function calculateChange() {
             const subtotal = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
-            const discountPercent = parseFloat(document.getElementById('cart-discount').value) || 0;
+            const discountPercent = parseFloat(document.getElementById('cart-discount')?.value) || 0;
             const grandTotal = subtotal - (subtotal * (discountPercent / 100));
 
+            const cashInput = document.getElementById('cash-received');
+            const changeEl = document.getElementById('cash-change');
+            const cashReceived = parseFloat(cashInput?.value) || 0;
+
             if (selectedPayment === 'Tunai') {
-                const cashInput = parseFloat(document.getElementById('cash-received').value) || 0;
-                const change = cashInput - grandTotal;
-                document.getElementById('cash-change').innerText = formatRp(change >= 0 ? change : 0);
+                const change = cashReceived - grandTotal;
+                if (changeEl) changeEl.innerText = formatRp(Math.max(0, change));
             } else {
-                document.getElementById('cash-change').innerText = 'Rp 0';
+                if (changeEl) changeEl.innerText = formatRp(0);
             }
         }
 
@@ -899,40 +1213,19 @@
                 change = cashReceived - grandTotal;
             }
 
-            const trxId = 'TRX-' + Math.floor(10000 + Math.random() * 90000);
-            const now = new Date();
-
-            // 1. Simpan Transaksi ke Supabase
-            const { error: errorTx } = await supabase.from('transactions').insert([{
-                id: trxId,
-                timestamp: now.toISOString(),
-                items: cart,
-                subtotal: subtotal,
-                discount: discountPercent,
-                total: grandTotal,
-                payment_method: selectedPayment,
-                paid_amount: cashReceived,
-                change: change
-            }]);
-
-            if (errorTx) {
-                showToast('Gagal menyimpan transaksi: ' + errorTx.message, 'danger');
-                return;
-            }
-
-            // 2. Otomatis Potong Stok di Supabase
-            for (const cartItem of cart) {
+            // AUTOMATIC STOCK DEDUCTION
+            cart.forEach(cartItem => {
                 const product = products.find(p => p.id === cartItem.id);
                 if (product) {
-                    const updatedStock = Math.max(0, product.stock - cartItem.qty);
-                    await supabase.from('products').update({ stock: updatedStock }).eq('id', product.id);
-                    product.stock = updatedStock;
+                    product.stock = Math.max(0, product.stock - cartItem.qty);
                 }
-            }
+            });
 
+            // Create Transaction Record
+            const trxId = 'TRX-' + Math.floor(10000 + Math.random() * 90000);
             const newTransaction = {
                 id: trxId,
-                timestamp: now,
+                timestamp: new Date(),
                 items: [...cart],
                 subtotal: subtotal,
                 discount: discountPercent,
@@ -942,10 +1235,41 @@
                 change: change
             };
 
+            // SYNC WITH SUPABASE IF CONNECTED
+            if (isSupabaseConnected && supabaseClient) {
+                try {
+                    // Update Stock in Supabase
+                    for (const item of cart) {
+                        const targetProd = products.find(p => p.id === item.id);
+                        if (targetProd) {
+                            await supabaseClient.from('products').update({ stock: targetProd.stock }).eq('id', item.id);
+                        }
+                    }
+
+                    // Insert Transaction in Supabase
+                    await supabaseClient.from('transactions').insert({
+                        id: trxId,
+                        timestamp: newTransaction.timestamp.toISOString(),
+                        items: JSON.stringify(cart),
+                        subtotal: subtotal,
+                        discount: discountPercent,
+                        total: grandTotal,
+                        payment_method: selectedPayment,
+                        paid_amount: cashReceived,
+                        change: change
+                    });
+
+                } catch (err) {
+                    console.error("Gagal menyimpan ke Supabase:", err);
+                }
+            }
+
             transactions.unshift(newTransaction);
 
+            // Open Printed Receipt Modal
             openReceiptModal(newTransaction);
 
+            // Reset Cart & Inputs
             cart = [];
             document.getElementById('cash-received').value = '';
             document.getElementById('cart-discount').value = '0';
@@ -954,10 +1278,6 @@
             renderReportsView();
             showToast('Transaksi Berhasil & Stok Diperbarui!');
         }
-
-        // ==========================================
-        // SECTION 2: INVENTORY & STOCK MANAGEMENT
-        // ==========================================
 
         function renderInventoryTable() {
             const searchQuery = document.getElementById('inventory-search').value.toLowerCase();
@@ -1029,14 +1349,10 @@
             }).join('');
         }
 
-        async function quickAdjustStock(id, delta) {
+        function quickAdjustStock(id, delta) {
             const product = products.find(p => p.id === id);
             if (product) {
-                const newStock = product.stock + delta;
-                const { error } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
-                if (error) return showToast('Gagal mengubah stok', 'danger');
-                
-                product.stock = newStock;
+                product.stock += delta;
                 renderInventoryTable();
                 renderPosProducts();
                 showToast(`Stok ${product.name} bertambah +${delta}`);
@@ -1054,7 +1370,6 @@
             }
         }
 
-        // Product Modal Functions
         function openAddProductModal() {
             document.getElementById('modal-product-title').innerText = 'Tambah Produk Baru';
             document.getElementById('form-product').reset();
@@ -1092,46 +1407,66 @@
             const buyPrice = parseFloat(document.getElementById('prod-buy-price').value) || 0;
             const sellPrice = parseFloat(document.getElementById('prod-sell-price').value) || 0;
             const stock = parseInt(document.getElementById('prod-stock').value) || 0;
-            const icon = category === 'Minuman' ? 'fa-mug-hot' : (category === 'Makanan' ? 'fa-utensils' : 'fa-box');
 
-            if (id) {
-                // Update
-                const { error } = await supabase.from('products').update({
-                    name, category, sku, buy_price: buyPrice, sell_price: sellPrice, stock, icon
-                }).eq('id', id);
-
-                if (error) return showToast('Gagal memperbarui produk: ' + error.message, 'danger');
-                showToast('Produk berhasil diperbarui');
+            if (isSupabaseConnected && supabaseClient) {
+                try {
+                    if (id) {
+                        await supabaseClient.from('products').update({
+                            name, category, sku,
+                            buy_price: buyPrice,
+                            sell_price: sellPrice,
+                            stock: stock
+                        }).eq('id', id);
+                    } else {
+                        await supabaseClient.from('products').insert({
+                            name, category, sku,
+                            buy_price: buyPrice,
+                            sell_price: sellPrice,
+                            stock: stock,
+                            icon: category === 'Minuman' ? 'fa-mug-hot' : (category === 'Makanan' ? 'fa-utensils' : 'fa-box')
+                        });
+                    }
+                    await fetchDataFromSupabase();
+                } catch (err) {
+                    console.error("Supabase error:", err);
+                }
             } else {
-                // Insert
-                const { error } = await supabase.from('products').insert([{
-                    name, category, sku, buy_price: buyPrice, sell_price: sellPrice, stock, icon
-                }]);
-
-                if (error) return showToast('Gagal menambahkan produk: ' + error.message, 'danger');
-                showToast('Produk baru ditambahkan');
+                if (id) {
+                    const index = products.findIndex(p => p.id == id);
+                    if (index !== -1) {
+                        products[index] = { ...products[index], name, category, sku, buyPrice, sellPrice, stock };
+                    }
+                } else {
+                    const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
+                    products.push({
+                        id: newId, name, category, sku, buyPrice, sellPrice, stock,
+                        icon: category === 'Minuman' ? 'fa-mug-hot' : (category === 'Makanan' ? 'fa-utensils' : 'fa-box')
+                    });
+                }
+                renderInventoryTable();
+                renderPosProducts();
             }
 
+            showToast(id ? 'Produk berhasil diperbarui' : 'Produk baru ditambahkan');
             closeProductModal();
-            await fetchProductsFromSupabase();
         }
 
-        async function deleteProduct(id) {
+        function deleteProduct(id) {
             const product = products.find(p => p.id === id);
             if (!product) return;
 
-            if (confirm(`Apakah Anda yakin ingin menghapus "${product.name}"?`)) {
-                const { error } = await supabase.from('products').delete().eq('id', id);
-                if (error) return showToast('Gagal menghapus produk', 'danger');
-
+            openConfirmModal('Hapus Produk', `Apakah Anda yakin ingin menghapus "${product.name}"?`, async () => {
+                if (isSupabaseConnected && supabaseClient) {
+                    await supabaseClient.from('products').delete().eq('id', id);
+                    await fetchDataFromSupabase();
+                } else {
+                    products = products.filter(p => p.id !== id);
+                    renderInventoryTable();
+                    renderPosProducts();
+                }
                 showToast('Produk telah dihapus', 'info');
-                await fetchProductsFromSupabase();
-            }
+            });
         }
-
-        // ==========================================
-        // SECTION 3: REPORTS & HISTORY LOGIC
-        // ==========================================
 
         function setReportPeriod(period) {
             currentReportPeriod = period;
@@ -1142,8 +1477,10 @@
             });
 
             const activeBtn = document.getElementById(`report-tab-${period}`);
-            activeBtn.classList.add('bg-white', 'shadow-xs', 'text-brand-600', 'font-bold');
-            activeBtn.classList.remove('text-slate-600');
+            if (activeBtn) {
+                activeBtn.classList.add('bg-white', 'shadow-xs', 'text-brand-600', 'font-bold');
+                activeBtn.classList.remove('text-slate-600');
+            }
 
             renderReportsView();
         }
@@ -1175,7 +1512,6 @@
                 trx.items.forEach(item => {
                     const itemCost = (item.buyPrice || 0) * item.qty;
                     totalCost += itemCost;
-
                     productSalesMap[item.name] = (productSalesMap[item.name] || 0) + item.qty;
                 });
             });
@@ -1198,7 +1534,7 @@
             document.getElementById('report-top-product-qty').innerText = `${topQty} unit terjual`;
 
             const titleMap = { 'today': 'Hari Ini', 'month': 'Bulan Ini', 'year': 'Tahun Ini' };
-            document.getElementById('chart-period-title').innerText = titleMap[currentReportPeriod];
+            document.getElementById('chart-period-title').innerText = titleMap[currentReportPeriod] || 'Hari Ini';
 
             renderHistoryTable(filteredTrx);
             renderSalesChart(filteredTrx, currentReportPeriod);
@@ -1310,10 +1646,6 @@
             });
         }
 
-        // ==========================================
-        // RECEIPT & DETAIL MODALS
-        // ==========================================
-
         function openReceiptModal(trx) {
             document.getElementById('receipt-id').innerText = `ID: ${trx.id}`;
             const dateObj = new Date(trx.timestamp);
@@ -1422,11 +1754,25 @@
             showToast('Laporan CSV berhasil diunduh');
         }
 
-        // ==========================================
-        // INITIALIZATION
-        // ==========================================
+        function confirmResetDemoData() {
+            openConfirmModal('Reset Data', 'Reset ulang data demo toko dan stok barang ke kondisi awal?', () => {
+                products = JSON.parse(JSON.stringify(INITIAL_PRODUCTS));
+                cart = [];
+                transactions = generateInitialHistory();
+                renderPosProducts();
+                renderCart();
+                renderInventoryTable();
+                renderReportsView();
+                showToast('Data demo berhasil direset ke awal', 'info');
+            });
+        }
+
         window.onload = function () {
-            syncDataFromSupabase();
+            initSupabaseClient();
+            renderPosProducts();
+            renderCart();
+            renderInventoryTable();
+            renderReportsView();
         }
     </script>
 </body>
