@@ -990,7 +990,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
 
             const filtered = products.filter(p => {
                 const matchCategory = activePosCategory === 'all' || p.category === activePosCategory;
-                const matchSearch = p.name.toLowerCase().includes(searchQuery) || p.sku.toLowerCase().includes(searchQuery);
+                const matchSearch = String(p.name || '').toLowerCase().includes(searchQuery) || String(p.sku || '').toLowerCase().includes(searchQuery);
                 return matchCategory && matchSearch;
             });
 
@@ -1280,13 +1280,14 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
         }
 
         function renderInventoryTable() {
-            const searchQuery = document.getElementById('inventory-search').value.toLowerCase();
-            const categoryFilter = document.getElementById('inventory-category-filter').value;
+            const searchQuery = document.getElementById('inventory-search').value.trim().toLowerCase();
+            let categoryFilter = document.getElementById('inventory-category-filter').value || 'all';
             const tbody = document.getElementById('inventory-table-body');
 
             const categories = ['all', ...new Set(products.map(p => p.category))];
             const selectEl = document.getElementById('inventory-category-filter');
             selectEl.innerHTML = categories.map(cat => `<option value="${cat}">${cat === 'all' ? 'Semua Kategori' : cat}</option>`).join('');
+            if (!categories.includes(categoryFilter)) categoryFilter = 'all';
             selectEl.value = categoryFilter;
 
             const filtered = products.filter(p => {
@@ -1349,14 +1350,47 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             }).join('');
         }
 
-        function quickAdjustStock(id, delta) {
-            const product = products.find(p => p.id === id);
-            if (product) {
-                product.stock += delta;
-                renderInventoryTable();
-                renderPosProducts();
-                showToast(`Stok ${product.name} bertambah +${delta}`);
+        async function quickAdjustStock(id, delta) {
+            const productId = Number(id);
+            const product = products.find(p => Number(p.id) === productId);
+            if (!product) {
+                showToast('Produk tidak ditemukan.', 'danger');
+                return;
             }
+
+            const oldStock = Number(product.stock) || 0;
+            const newStock = Math.max(0, oldStock + Number(delta));
+            product.stock = newStock;
+
+            if (isSupabaseConnected && supabaseClient) {
+                try {
+                    const { error } = await supabaseClient
+                        .from('products')
+                        .update({ stock: newStock })
+                        .eq('id', productId);
+
+                    if (error) {
+                        product.stock = oldStock;
+                        console.error('Supabase stock update error:', error);
+                        renderInventoryTable();
+                        renderPosProducts();
+                        showToast(`Gagal memperbarui stok: ${error.message || 'Error database'}`, 'danger');
+                        return;
+                    }
+                } catch (err) {
+                    product.stock = oldStock;
+                    console.error('Supabase stock update exception:', err);
+                    renderInventoryTable();
+                    renderPosProducts();
+                    showToast(`Gagal memperbarui stok: ${err.message || 'Terjadi kesalahan.'}`, 'danger');
+                    return;
+                }
+            }
+
+            renderInventoryTable();
+            renderPosProducts();
+            updateLowStockBadge();
+            showToast(`Stok ${product.name} ${delta >= 0 ? 'bertambah' : 'berkurang'} ${delta >= 0 ? '+' : ''}${delta}`);
         }
 
         function updateLowStockBadge() {
@@ -1397,74 +1431,263 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             document.getElementById('modal-product').classList.add('hidden');
         }
 
+        function getProductIcon(category) {
+            if (category === 'Minuman') return 'fa-mug-hot';
+            if (category === 'Makanan') return 'fa-utensils';
+            if (category === 'Cemilan') return 'fa-cookie';
+            if (category === 'Kebersihan') return 'fa-soap';
+            return 'fa-box';
+        }
+
+        function generateUniqueSku() {
+            let sku;
+            do {
+                sku = 'SKU-' + Math.floor(100000 + Math.random() * 900000);
+            } while (products.some(p => String(p.sku || '').toUpperCase() === sku));
+            return sku;
+        }
+
+        function openAddProductModal() {
+            document.getElementById('modal-product-title').innerText = 'Tambah Produk Baru';
+            document.getElementById('form-product').reset();
+            document.getElementById('prod-id').value = '';
+            document.getElementById('prod-category').value = 'Minuman';
+            document.getElementById('prod-stock').value = '0';
+            document.getElementById('modal-product').classList.remove('hidden');
+            setTimeout(() => document.getElementById('prod-name').focus(), 50);
+        }
+
+        function openEditProductModal(id) {
+            const productId = Number(id);
+            const p = products.find(item => Number(item.id) === productId);
+            if (!p) {
+                showToast('Produk tidak ditemukan.', 'danger');
+                return;
+            }
+
+            document.getElementById('modal-product-title').innerText = 'Edit Produk';
+            document.getElementById('prod-id').value = String(p.id);
+            document.getElementById('prod-name').value = p.name || '';
+            document.getElementById('prod-category').value = p.category || 'Minuman';
+            document.getElementById('prod-sku').value = p.sku || '';
+            document.getElementById('prod-buy-price').value = Number(p.buyPrice || 0);
+            document.getElementById('prod-sell-price').value = Number(p.sellPrice || 0);
+            document.getElementById('prod-stock').value = Number(p.stock || 0);
+
+            document.getElementById('modal-product').classList.remove('hidden');
+            setTimeout(() => document.getElementById('prod-name').focus(), 50);
+        }
+
+        function closeProductModal() {
+            document.getElementById('modal-product').classList.add('hidden');
+        }
+
         async function handleSaveProduct(e) {
             e.preventDefault();
 
-            const id = document.getElementById('prod-id').value;
-            const name = document.getElementById('prod-name').value;
-            const category = document.getElementById('prod-category').value;
-            const sku = document.getElementById('prod-sku').value || 'SKU-' + Math.floor(1000 + Math.random() * 9000);
-            const buyPrice = parseFloat(document.getElementById('prod-buy-price').value) || 0;
-            const sellPrice = parseFloat(document.getElementById('prod-sell-price').value) || 0;
-            const stock = parseInt(document.getElementById('prod-stock').value) || 0;
+            const rawId = document.getElementById('prod-id').value.trim();
+            const id = rawId ? Number(rawId) : null;
+            const name = document.getElementById('prod-name').value.trim();
+            const category = document.getElementById('prod-category').value.trim();
+            const skuInput = document.getElementById('prod-sku').value.trim();
+            const sku = skuInput || generateUniqueSku();
+            const buyPrice = Number(document.getElementById('prod-buy-price').value);
+            const sellPrice = Number(document.getElementById('prod-sell-price').value);
+            const stock = Number(document.getElementById('prod-stock').value);
 
-            if (isSupabaseConnected && supabaseClient) {
-                try {
-                    if (id) {
-                        await supabaseClient.from('products').update({
-                            name, category, sku,
-                            buy_price: buyPrice,
-                            sell_price: sellPrice,
-                            stock: stock
-                        }).eq('id', id);
-                    } else {
-                        await supabaseClient.from('products').insert({
-                            name, category, sku,
-                            buy_price: buyPrice,
-                            sell_price: sellPrice,
-                            stock: stock,
-                            icon: category === 'Minuman' ? 'fa-mug-hot' : (category === 'Makanan' ? 'fa-utensils' : 'fa-box')
-                        });
-                    }
-                    await fetchDataFromSupabase();
-                } catch (err) {
-                    console.error("Supabase error:", err);
-                }
-            } else {
-                if (id) {
-                    const index = products.findIndex(p => p.id == id);
-                    if (index !== -1) {
-                        products[index] = { ...products[index], name, category, sku, buyPrice, sellPrice, stock };
-                    }
-                } else {
-                    const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
-                    products.push({
-                        id: newId, name, category, sku, buyPrice, sellPrice, stock,
-                        icon: category === 'Minuman' ? 'fa-mug-hot' : (category === 'Makanan' ? 'fa-utensils' : 'fa-box')
-                    });
-                }
-                renderInventoryTable();
-                renderPosProducts();
+            if (!name) {
+                showToast('Nama produk wajib diisi.', 'danger');
+                return;
+            }
+            if (!category) {
+                showToast('Kategori produk wajib dipilih.', 'danger');
+                return;
+            }
+            if (!Number.isFinite(buyPrice) || buyPrice < 0) {
+                showToast('Harga beli tidak valid.', 'danger');
+                return;
+            }
+            if (!Number.isFinite(sellPrice) || sellPrice < 0) {
+                showToast('Harga jual tidak valid.', 'danger');
+                return;
+            }
+            if (!Number.isInteger(stock) || stock < 0) {
+                showToast('Stok harus berupa angka bulat 0 atau lebih.', 'danger');
+                return;
             }
 
-            showToast(id ? 'Produk berhasil diperbarui' : 'Produk baru ditambahkan');
+            const normalizedSku = sku.toUpperCase();
+            const duplicateSku = products.find(p =>
+                String(p.sku || '').trim().toUpperCase() === normalizedSku && Number(p.id) !== id
+            );
+            if (duplicateSku) {
+                showToast(`SKU "${sku}" sudah digunakan oleh ${duplicateSku.name}.`, 'danger');
+                return;
+            }
+
+            const icon = getProductIcon(category);
+            const payload = {
+                name,
+                category,
+                sku,
+                buy_price: buyPrice,
+                sell_price: sellPrice,
+                stock,
+                icon
+            };
+
+            // ==============================
+            // SUPABASE MODE
+            // ==============================
+            if (isSupabaseConnected && supabaseClient) {
+                try {
+                    let savedProduct;
+                    let error;
+
+                    if (id !== null && Number.isFinite(id)) {
+                        const result = await supabaseClient
+                            .from('products')
+                            .update(payload)
+                            .eq('id', id)
+                            .select()
+                            .single();
+
+                        savedProduct = result.data;
+                        error = result.error;
+
+                        if (!error && !savedProduct) {
+                            error = new Error('Produk tidak ditemukan atau tidak dapat diperbarui.');
+                        }
+                    } else {
+                        const result = await supabaseClient
+                            .from('products')
+                            .insert(payload)
+                            .select()
+                            .single();
+
+                        savedProduct = result.data;
+                        error = result.error;
+                    }
+
+                    if (error) {
+                        console.error('Supabase product save error:', error);
+                        showToast(`Gagal menyimpan produk: ${error.message || 'Error database'}`, 'danger');
+                        return;
+                    }
+
+                    const mappedProduct = {
+                        id: savedProduct.id,
+                        name: savedProduct.name,
+                        category: savedProduct.category,
+                        buyPrice: Number(savedProduct.buy_price || 0),
+                        sellPrice: Number(savedProduct.sell_price || 0),
+                        stock: Number(savedProduct.stock || 0),
+                        sku: savedProduct.sku || `SKU-${savedProduct.id}`,
+                        icon: savedProduct.icon || 'fa-box'
+                    };
+
+                    const existingIndex = products.findIndex(p => Number(p.id) === Number(mappedProduct.id));
+                    if (existingIndex >= 0) {
+                        products[existingIndex] = mappedProduct;
+                    } else {
+                        products.push(mappedProduct);
+                    }
+
+                    renderInventoryTable();
+                    renderPosProducts();
+                    updateLowStockBadge();
+                    closeProductModal();
+                    showToast(id !== null ? 'Produk berhasil diperbarui.' : 'Produk baru berhasil ditambahkan.');
+                    return;
+                } catch (err) {
+                    console.error('Supabase product exception:', err);
+                    showToast(`Gagal menyimpan produk: ${err.message || 'Terjadi kesalahan.'}`, 'danger');
+                    return;
+                }
+            }
+
+            // ==============================
+            // DEMO / LOCAL MODE
+            // ==============================
+            if (id !== null && Number.isFinite(id)) {
+                const index = products.findIndex(p => Number(p.id) === id);
+                if (index === -1) {
+                    showToast('Produk yang akan diedit tidak ditemukan.', 'danger');
+                    return;
+                }
+
+                products[index] = {
+                    ...products[index],
+                    name,
+                    category,
+                    sku,
+                    buyPrice,
+                    sellPrice,
+                    stock,
+                    icon
+                };
+            } else {
+                const newId = products.length > 0
+                    ? Math.max(...products.map(p => Number(p.id) || 0)) + 1
+                    : 1;
+
+                products.push({
+                    id: newId,
+                    name,
+                    category,
+                    sku,
+                    buyPrice,
+                    sellPrice,
+                    stock,
+                    icon
+                });
+            }
+
+            renderInventoryTable();
+            renderPosProducts();
+            updateLowStockBadge();
             closeProductModal();
+            showToast(id !== null ? 'Produk berhasil diperbarui.' : 'Produk baru berhasil ditambahkan.');
         }
 
         function deleteProduct(id) {
-            const product = products.find(p => p.id === id);
-            if (!product) return;
+            const productId = Number(id);
+            const product = products.find(p => Number(p.id) === productId);
+            if (!product) {
+                showToast('Produk tidak ditemukan.', 'danger');
+                return;
+            }
 
             openConfirmModal('Hapus Produk', `Apakah Anda yakin ingin menghapus "${product.name}"?`, async () => {
                 if (isSupabaseConnected && supabaseClient) {
-                    await supabaseClient.from('products').delete().eq('id', id);
-                    await fetchDataFromSupabase();
+                    try {
+                        const { error } = await supabaseClient
+                            .from('products')
+                            .delete()
+                            .eq('id', productId);
+
+                        if (error) {
+                            console.error('Supabase delete error:', error);
+                            showToast(`Gagal menghapus produk: ${error.message || 'Error database'}`, 'danger');
+                            return;
+                        }
+
+                        products = products.filter(p => Number(p.id) !== productId);
+                        renderInventoryTable();
+                        renderPosProducts();
+                        updateLowStockBadge();
+                        showToast('Produk telah dihapus.', 'info');
+                    } catch (err) {
+                        console.error('Supabase delete exception:', err);
+                        showToast(`Gagal menghapus produk: ${err.message || 'Terjadi kesalahan.'}`, 'danger');
+                    }
                 } else {
-                    products = products.filter(p => p.id !== id);
+                    products = products.filter(p => Number(p.id) !== productId);
                     renderInventoryTable();
                     renderPosProducts();
+                    updateLowStockBadge();
+                    showToast('Produk telah dihapus.', 'info');
                 }
-                showToast('Produk telah dihapus', 'info');
             });
         }
 
