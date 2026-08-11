@@ -14,6 +14,16 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Supabase JS Client CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="./icon-192.svg">
+    <!-- Clerk JS -->
+    <script defer crossorigin="anonymous" src="https://funky-mosquito-4.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js"></script>
+    <script defer crossorigin="anonymous" data-clerk-publishable-key="pk_test_ZnVua3ktbW9zcXVpdG8tNC5jbGVyay5hY2NvdW50cy5kZXYk" src="https://funky-mosquito-4.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js"></script>
+
     <script>
         tailwind.config = {
             theme: {
@@ -50,6 +60,88 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
+        @media (max-width: 768px) {
+            body {
+                min-width: 0;
+                overflow-x: hidden;
+            }
+
+            header .max-w-7xl {
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+            }
+
+            header .h-16 {
+                height: auto;
+                min-height: 4rem;
+                padding-top: 0.6rem;
+                padding-bottom: 0.6rem;
+                gap: 0.5rem;
+                flex-wrap: wrap;
+            }
+
+            header nav {
+                order: 3;
+                width: 100%;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            header nav::-webkit-scrollbar { display: none; }
+
+            header nav .tab-btn {
+                flex: 0 0 auto;
+            }
+
+            header .action-controls {
+                margin-left: auto;
+            }
+
+            main {
+                padding: 0.75rem !important;
+            }
+
+            .mobile-scroll-x {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            #salesChart {
+                min-height: 280px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header .logo-title {
+                max-width: 55%;
+            }
+
+            header .logo-title h1 {
+                font-size: 0.9rem;
+            }
+
+            header .logo-title p {
+                font-size: 0.65rem;
+            }
+
+            header .action-controls {
+                gap: 0.25rem;
+            }
+
+            .report-period-btn, #report-month-select {
+                font-size: 0.68rem;
+            }
+        }
+
+        #pos-app-shell { min-height: 100vh; }
+        #clerk-sign-in .cl-rootBox { width: 100%; }
+        @media (max-width: 640px) {
+            #auth-gate { align-items: flex-start; padding-top: 1.5rem; }
+            #clerk-sign-in { border-radius: 1rem; }
+            .toast-container, #toast-container { right: 0.75rem !important; left: 0.75rem; bottom: 0.75rem; }
+            #modal-stock-adjust > div, #modal-refund > div { max-height: 92vh; }
+        }
+
         @media print {
             body * {
                 visibility: hidden;
@@ -67,13 +159,28 @@
     </style>
 </head>
 <body class="bg-slate-100 font-sans text-slate-800 antialiased min-h-screen flex flex-col">
+    <!-- AUTH GATE: POS hanya dapat diakses setelah login Clerk -->
+    <div id="auth-gate" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="w-full max-w-md">
+            <div class="text-center text-white mb-5">
+                <div class="mx-auto mb-3 w-14 h-14 rounded-2xl bg-sky-500 flex items-center justify-center shadow-xl shadow-sky-500/20"><i class="fa-solid fa-store text-2xl"></i></div>
+                <h1 class="text-2xl font-extrabold">POS Pro</h1>
+                <p class="text-slate-400 text-sm mt-1">Silakan login untuk mengakses sistem kasir</p>
+            </div>
+            <div id="clerk-sign-in" class="bg-white rounded-2xl shadow-2xl overflow-hidden"></div>
+            <div id="clerk-load-error" class="hidden mt-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-200 p-4 text-sm">Gagal memuat login Clerk. Pastikan koneksi internet aktif dan Publishable Key Clerk benar.</div>
+        </div>
+    </div>
+
+    <div id="pos-app-shell" class="hidden flex-1 flex-col min-h-screen">
+
 
     <!-- Top Header -->
     <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <!-- Logo & Title -->
-                <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-3 logo-title">
                     <div class="bg-brand-500 p-2 rounded-xl text-white shadow-lg">
                         <i class="fa-solid me-0 fa-cash-register text-xl"></i>
                     </div>
@@ -101,14 +208,18 @@
                 </nav>
 
                 <!-- Action Controls -->
-                <div class="flex items-center space-x-2">
-                    <button onclick="openSupabaseModal()" id="supabase-status-btn" title="Pengaturan Supabase Database" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition">
+                <div class="flex items-center space-x-2 action-controls">
+                    <div id="supabase-status-btn" title="Status database" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition">
                         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" id="supabase-status-dot"></span>
                         <span id="supabase-status-text">Supabase: Aktif</span>
-                    </button>
+                    </div>
                     <button onclick="confirmResetDemoData()" title="Reset Data Sample" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg hover:bg-slate-800 transition">
                         <i class="fa-solid fa-rotate-left"></i>
                     </button>
+                    <button id="install-app-btn" onclick="installPWA()" title="Install aplikasi" class="hidden text-slate-300 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                    <div id="clerk-user-button" class="min-w-[34px] flex justify-center"></div>
                 </div>
             </div>
         </div>
@@ -244,7 +355,7 @@
                 </div>
                 <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div>
-                        <p class="text-xs font-semibold text-slate-500">Stok Menipis (&lt; 5)</p>
+                        <p class="text-xs font-semibold text-slate-500">Stok Menipis (sesuai batas minimum)</p>
                         <h3 id="stat-low-stock" class="text-2xl font-bold text-amber-600">0</h3>
                     </div>
                     <div class="p-3 bg-amber-50 text-amber-600 rounded-xl"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
@@ -278,6 +389,7 @@
                                 <th class="py-3 px-4">Kategori</th>
                                 <th class="py-3 px-4">Harga Beli</th>
                                 <th class="py-3 px-4">Harga Jual</th>
+                                <th class="py-3 px-4">Stok Minimum</th>
                                 <th class="py-3 px-4">Stok Saat Ini</th>
                                 <th class="py-3 px-4 text-center">Aksi</th>
                             </tr>
@@ -300,16 +412,19 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                    <div class="bg-slate-100 p-1 rounded-xl flex space-x-1 text-xs font-medium">
-                        <button onclick="setReportPeriod('today')" id="report-tab-today" class="report-period-btn px-3 py-2 rounded-lg bg-white shadow-xs text-brand-600 font-bold transition">
-                            Hari Ini
-                        </button>
-                        <button onclick="setReportPeriod('month')" id="report-tab-month" class="report-period-btn px-3 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition">
-                            Bulan Ini
-                        </button>
-                        <button onclick="setReportPeriod('year')" id="report-tab-year" class="report-period-btn px-3 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition">
-                            Tahun Ini
-                        </button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="bg-slate-100 p-1 rounded-xl flex flex-wrap gap-1 text-xs font-medium">
+                            <button onclick="setReportPeriod('month')" id="report-tab-month" class="report-period-btn px-3 py-2 rounded-lg bg-white shadow-xs text-brand-600 font-bold transition">
+                                Bulan Ini
+                            </button>
+                            <button onclick="setReportPeriod('previousMonth')" id="report-tab-previousMonth" class="report-period-btn px-3 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition">
+                                Bulan Lalu
+                            </button>
+                            <button onclick="setReportPeriod('year')" id="report-tab-year" class="report-period-btn px-3 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition">
+                                Tahun Ini
+                            </button>
+                        </div>
+                        <select id="report-month-select" onchange="selectReportMonth(this.value)" class="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
                     </div>
 
                     <button onclick="exportHistoryCSV()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition flex items-center space-x-1.5">
@@ -441,9 +556,15 @@
                     </div>
                 </div>
 
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Jumlah Stok Awal *</label>
-                    <input type="number" id="prod-stock" required min="0" placeholder="10" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Jumlah Stok Awal *</label>
+                        <input type="number" id="prod-stock" required min="0" placeholder="10" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Batas Minimum Stok *</label>
+                        <input type="number" id="prod-min-stock" required min="0" placeholder="5" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
                 </div>
 
                 <div class="pt-2 flex justify-end space-x-3">
@@ -529,8 +650,38 @@
                 <!-- Populated by JS -->
             </div>
             <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 text-right">
-                <button onclick="closeDetailModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl">Tutup</button>
+                <div class="flex gap-2 justify-end"><button id="detail-refund-btn" onclick="openRefundModalFromDetail()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl">Refund</button><button onclick="closeDetailModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl">Tutup</button></div>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL: STOCK ADJUSTMENT -->
+    <div id="modal-stock-adjust" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                <div><h3 class="font-bold text-base">Penyesuaian Stok</h3><p id="stock-adjust-product" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+                <button onclick="closeStockAdjustModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="form-stock-adjust" onsubmit="submitStockAdjustment(event)" class="p-6 space-y-4">
+                <input type="hidden" id="stock-adjust-id">
+                <div class="grid grid-cols-2 gap-3">
+                    <button type="button" id="stock-add-btn" onclick="setStockAdjustMode('add')" class="py-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-700 font-bold"><i class="fa-solid fa-plus mr-1"></i>Tambah</button>
+                    <button type="button" id="stock-remove-btn" onclick="setStockAdjustMode('remove')" class="py-3 rounded-xl border-2 border-slate-200 bg-white text-slate-600 font-bold"><i class="fa-solid fa-minus mr-1"></i>Kurangi</button>
+                </div>
+                <input type="hidden" id="stock-adjust-mode" value="add">
+                <div><label class="text-xs font-semibold text-slate-600">Jumlah</label><input id="stock-adjust-qty" type="number" min="1" step="1" required class="mt-1 w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500"></div>
+                <div><label class="text-xs font-semibold text-slate-600">Alasan</label><input id="stock-adjust-reason" type="text" placeholder="Contoh: Restock supplier / barang rusak" class="mt-1 w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500"></div>
+                <div id="stock-adjust-preview" class="bg-slate-50 rounded-xl p-3 text-sm text-slate-600"></div>
+                <div class="flex gap-3 pt-2"><button type="button" onclick="closeStockAdjustModal()" class="flex-1 py-3 bg-slate-100 rounded-xl font-semibold text-slate-700">Batal</button><button type="submit" class="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold">Simpan Stok</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: REFUND -->
+    <div id="modal-refund" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[75] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 bg-rose-600 text-white flex items-center justify-between"><div><h3 class="font-bold">Refund Transaksi</h3><p id="refund-trx-id" class="text-[11px] text-rose-100"></p></div><button onclick="closeRefundModal()" class="text-rose-100 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button></div>
+            <form id="form-refund" onsubmit="submitRefund(event)" class="p-6 overflow-y-auto space-y-4"><input type="hidden" id="refund-id"><div id="refund-items" class="space-y-3"></div><div><label class="text-xs font-semibold text-slate-600">Alasan refund</label><input id="refund-reason" type="text" placeholder="Contoh: pelanggan mengembalikan barang" class="mt-1 w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-rose-500"></div><div id="refund-total" class="bg-rose-50 text-rose-800 rounded-xl p-4 font-bold flex justify-between"><span>Total refund</span><span>Rp 0</span></div><div class="flex gap-3"><button type="button" onclick="closeRefundModal()" class="flex-1 py-3 bg-slate-100 rounded-xl font-semibold">Batal</button><button type="submit" class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold">Proses Refund</button></div></form>
         </div>
     </div>
 
@@ -554,118 +705,42 @@
     <!-- Toast Notification Container -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
-    <!-- MODAL 5: SUPABASE CONFIGURATION & SQL SCHEMA GUIDE -->
-    <div id="modal-supabase" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
-            <div class="px-6 py-4 bg-emerald-700 text-white flex items-center justify-between">
-                <div class="flex items-center space-x-2">
-                    <i class="fa-solid fa-database text-lg"></i>
-                    <h3 class="font-bold text-base">Konfigurasi Supabase Database</h3>
-                </div>
-                <button onclick="closeSupabaseModal()" class="text-slate-300 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
-            </div>
-            
-            <div class="p-6 space-y-5 overflow-y-auto flex-1 text-slate-700 text-xs sm:text-sm">
-                <!-- Credentials Form -->
-                <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl space-y-3">
-                    <h4 class="font-bold text-emerald-900 text-sm flex items-center space-x-2">
-                        <i class="fa-solid fa-key"></i>
-                        <span>Kredensial Project Supabase</span>
-                    </h4>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">SUPABASE URL</label>
-                        <input type="text" id="supabase-url" placeholder="https://xyzcompany.supabase.co" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">SUPABASE ANON KEY</label>
-                        <input type="password" id="supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none">
-                    </div>
-                    <div class="flex items-center space-x-2 pt-1">
-                        <button onclick="saveSupabaseConfig()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5">
-                            <i class="fa-solid fa-plug"></i>
-                            <span>Hubungkan Supabase</span>
-                        </button>
-                        <button onclick="disconnectSupabase()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-xl transition">
-                            Gunakan Demo Mode
-                        </button>
-                    </div>
-                </div>
-
-                <!-- SQL Schema Helper -->
-                <div class="space-y-2">
-                    <h4 class="font-bold text-slate-800 text-xs sm:text-sm flex items-center space-x-2">
-                        <i class="fa-solid fa-code"></i>
-                        <span>Struktur Tabel SQL Supabase (Jalankan di SQL Editor)</span>
-                    </h4>
-                    <p class="text-xs text-slate-500">Salin dan jalankan script SQL di bawah ini pada menu **SQL Editor** di dashboard Supabase Anda:</p>
-
-                    <div class="relative bg-slate-900 text-slate-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">
-                        <button onclick="copySqlSchema()" class="absolute top-2 right-2 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] rounded border border-slate-700 font-sans transition flex items-center space-x-1">
-                            <i class="fa-solid fa-copy"></i>
-                            <span>Salin SQL</span>
-                        </button>
-                        <pre id="sql-schema-code">-- 1. Tabel Produk
-CREATE TABLE IF NOT EXISTS products (
-    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    name TEXT NOT NULL,
-    category TEXT NOT NULL,
-    buy_price NUMERIC DEFAULT 0,
-    sell_price NUMERIC DEFAULT 0,
-    stock INT DEFAULT 0,
-    sku TEXT UNIQUE,
-    icon TEXT DEFAULT 'fa-box'
-);
-
--- 2. Tabel Transaksi
-CREATE TABLE IF NOT EXISTS transactions (
-    id TEXT PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT NOW(),
-    items JSONB NOT NULL,
-    subtotal NUMERIC DEFAULT 0,
-    discount NUMERIC DEFAULT 0,
-    total NUMERIC DEFAULT 0,
-    payment_method TEXT,
-    paid_amount NUMERIC DEFAULT 0,
-    change NUMERIC DEFAULT 0
-);
-
--- Matikan RLS untuk testing sederhana
-ALTER TABLE products DISABLE ROW LEVEL SECURITY;
-ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
-                    </div>
-                </div>
-            </div>
-
-            <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 text-right">
-                <button onclick="closeSupabaseModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl">Tutup</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         // ==========================================
         // INITIAL STATE & SUPABASE CLIENT
         // ==========================================
+
+        // ==========================================================
+        // SUPABASE SQL MIGRATION (jalankan sekali di SQL Editor)
+        // ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock INT DEFAULT 5;
+        // ==========================================================
+        // SUPABASE CONFIG — SIMPAN DI KODE, BUKAN DI TAMPILAN WEB
+        // Ganti dua nilai di bawah dengan URL dan ANON KEY project Anda.
+        // Jangan gunakan SERVICE ROLE KEY di browser.
+        // ==========================================================
+        const SUPABASE_URL = 'https://orworrcsotkvprfpztei.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9yd29ycmNzb3RrdnByZnB6dGVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NDc5MDYsImV4cCI6MjEwMjAyMzkwNn0.1vpGqncLSlShTe0NLpV9IdfbISA9DL-3YJ9QdJ9n3IE';
 
         let supabaseClient = null;
         let isSupabaseConnected = false;
         let onConfirmCallback = null;
 
         const INITIAL_PRODUCTS = [
-            { id: 1, name: 'Kopi Milk Sugar', category: 'Minuman', buyPrice: 8000, sellPrice: 18000, stock: 35, sku: 'DRK-001', icon: 'fa-mug-hot' },
-            { id: 2, name: 'Teh Manis Dingin', category: 'Minuman', buyPrice: 2000, sellPrice: 6000, stock: 4, sku: 'DRK-002', icon: 'fa-glass-water' },
-            { id: 3, name: 'Nasi Goreng Spesial', category: 'Makanan', buyPrice: 12000, sellPrice: 25000, stock: 20, sku: 'FOD-001', icon: 'fa-utensils' },
-            { id: 4, name: 'Mie Goreng Telur', category: 'Makanan', buyPrice: 8000, sellPrice: 16000, stock: 15, sku: 'FOD-002', icon: 'fa-bowl-food' },
-            { id: 5, name: 'Air Mineral 600ml', category: 'Minuman', buyPrice: 2000, sellPrice: 4000, stock: 50, sku: 'DRK-003', icon: 'fa-bottle-water' },
-            { id: 6, name: 'Keripik Singkong', category: 'Cemilan', buyPrice: 5000, sellPrice: 10000, stock: 3, sku: 'SNK-001', icon: 'fa-cookie' },
-            { id: 7, name: 'Roti Bakar Cokelat', category: 'Makanan', buyPrice: 7000, sellPrice: 15000, stock: 12, sku: 'FOD-003', icon: 'fa-bread-slice' },
-            { id: 8, name: 'Sabun Cuci Tangan', category: 'Kebersihan', buyPrice: 9000, sellPrice: 14000, stock: 0, sku: 'CLN-001', icon: 'fa-soap' }
+            { id: 1, name: 'Kopi Milk Sugar', category: 'Minuman', buyPrice: 8000, sellPrice: 18000, stock: 35, minStock: 10, sku: 'DRK-001', icon: 'fa-mug-hot' },
+            { id: 2, name: 'Teh Manis Dingin', category: 'Minuman', buyPrice: 2000, sellPrice: 6000, stock: 4, minStock: 5, sku: 'DRK-002', icon: 'fa-glass-water' },
+            { id: 3, name: 'Nasi Goreng Spesial', category: 'Makanan', buyPrice: 12000, sellPrice: 25000, stock: 20, minStock: 5, sku: 'FOD-001', icon: 'fa-utensils' },
+            { id: 4, name: 'Mie Goreng Telur', category: 'Makanan', buyPrice: 8000, sellPrice: 16000, stock: 15, minStock: 5, sku: 'FOD-002', icon: 'fa-bowl-food' },
+            { id: 5, name: 'Air Mineral 600ml', category: 'Minuman', buyPrice: 2000, sellPrice: 4000, stock: 50, minStock: 10, sku: 'DRK-003', icon: 'fa-bottle-water' },
+            { id: 6, name: 'Keripik Singkong', category: 'Cemilan', buyPrice: 5000, sellPrice: 10000, stock: 3, minStock: 5, sku: 'SNK-001', icon: 'fa-cookie' },
+            { id: 7, name: 'Roti Bakar Cokelat', category: 'Makanan', buyPrice: 7000, sellPrice: 15000, stock: 12, minStock: 5, sku: 'FOD-003', icon: 'fa-bread-slice' },
+            { id: 8, name: 'Sabun Cuci Tangan', category: 'Kebersihan', buyPrice: 9000, sellPrice: 14000, stock: 0, minStock: 5, sku: 'CLN-001', icon: 'fa-soap' }
         ];
 
         let products = [...INITIAL_PRODUCTS];
         let cart = [];
         let selectedPayment = 'Tunai';
-        let currentReportPeriod = 'today';
+        let currentReportPeriod = 'month';
+        let selectedReportMonth = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })();
         let salesChartInstance = null;
         let transactions = [];
 
@@ -728,36 +803,31 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
         transactions = generateInitialHistory();
 
         function initSupabaseClient() {
-            const url = localStorage.getItem('POS_SUPABASE_URL');
-            const key = localStorage.getItem('POS_SUPABASE_KEY');
-
             const statusDot = document.getElementById('supabase-status-dot');
             const statusText = document.getElementById('supabase-status-text');
-            const statusBtn = document.getElementById('supabase-status-btn');
 
-            if (url && key && window.supabase) {
+            const configured = SUPABASE_URL.startsWith('https://') &&
+                               SUPABASE_URL.includes('.supabase.co') &&
+                               SUPABASE_ANON_KEY.length > 20 &&
+                               window.supabase;
+
+            if (configured) {
                 try {
-                    supabaseClient = window.supabase.createClient(url, key);
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                     isSupabaseConnected = true;
-
-                    statusDot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
-                    statusText.innerText = "Supabase: Terhubung";
-                    statusBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition";
-
-                    document.getElementById('supabase-url').value = url;
-                    document.getElementById('supabase-key').value = key;
-
+                    statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+                    statusText.innerText = 'Database: Terhubung';
                     fetchDataFromSupabase();
                     return;
                 } catch (e) {
-                    console.error("Gagal inisialisasi Supabase:", e);
+                    console.error('Gagal inisialisasi Supabase:', e);
                 }
             }
 
+            supabaseClient = null;
             isSupabaseConnected = false;
-            statusDot.className = "w-2 h-2 rounded-full bg-amber-400";
-            statusText.innerText = "Supabase: Demo Mode";
-            statusBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition";
+            statusDot.className = 'w-2 h-2 rounded-full bg-amber-400';
+            statusText.innerText = 'Database: Demo';
         }
 
         async function fetchDataFromSupabase() {
@@ -781,6 +851,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                             buyPrice: Number(p.buy_price || 0),
                             sellPrice: Number(p.sell_price || 0),
                             stock: Number(p.stock || 0),
+                            minStock: Number(p.min_stock ?? 5),
                             sku: p.sku || `SKU-${p.id}`,
                             icon: p.icon || 'fa-box'
                         }));
@@ -805,7 +876,13 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                         total: Number(t.total || 0),
                         paymentMethod: t.payment_method,
                         paidAmount: Number(t.paid_amount || 0),
-                        change: Number(t.change || 0)
+                        change: Number(t.change || 0),
+                        refundAmount: Number(t.refund_amount || 0),
+                        refundItems: typeof t.refund_items === 'string' ? JSON.parse(t.refund_items || '[]') : (t.refund_items || []),
+                        refundReason: t.refund_reason || '',
+                        refundedAt: t.refunded_at ? new Date(t.refunded_at) : null,
+                        refundedBy: t.refunded_by || '',
+                        status: t.status || 'completed'
                     }));
                     renderReportsView();
                 }
@@ -825,6 +902,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                 buy_price: p.buyPrice,
                 sell_price: p.sellPrice,
                 stock: p.stock,
+                min_stock: p.minStock ?? 5,
                 sku: p.sku,
                 icon: p.icon
             }));
@@ -838,57 +916,13 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                     buyPrice: Number(p.buy_price),
                     sellPrice: Number(p.sell_price),
                     stock: Number(p.stock),
+                    minStock: Number(p.min_stock ?? 5),
                     sku: p.sku,
                     icon: p.icon
                 }));
                 renderPosProducts();
                 renderInventoryTable();
             }
-        }
-
-        function openSupabaseModal() {
-            document.getElementById('modal-supabase').classList.remove('hidden');
-        }
-
-        function closeSupabaseModal() {
-            document.getElementById('modal-supabase').classList.add('hidden');
-        }
-
-        function saveSupabaseConfig() {
-            const url = document.getElementById('supabase-url').value.trim();
-            const key = document.getElementById('supabase-key').value.trim();
-
-            if (!url || !key) {
-                showToast('Harap isi URL dan Anon Key Supabase!', 'danger');
-                return;
-            }
-
-            localStorage.setItem('POS_SUPABASE_URL', url);
-            localStorage.setItem('POS_SUPABASE_KEY', key);
-
-            closeSupabaseModal();
-            initSupabaseClient();
-        }
-
-        function disconnectSupabase() {
-            localStorage.removeItem('POS_SUPABASE_URL');
-            localStorage.removeItem('POS_SUPABASE_KEY');
-            supabaseClient = null;
-            isSupabaseConnected = false;
-            closeSupabaseModal();
-            initSupabaseClient();
-            showToast('Beralih ke Demo Mode (Lokal)', 'info');
-        }
-
-        function copySqlSchema() {
-            const code = document.getElementById('sql-schema-code').innerText;
-            const textarea = document.createElement('textarea');
-            textarea.value = code;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-            showToast('Script SQL berhasil disalin!');
         }
 
         function updateClock() {
@@ -1006,7 +1040,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
 
             grid.innerHTML = filtered.map(p => {
                 const isOutOfStock = p.stock <= 0;
-                const isLowStock = p.stock > 0 && p.stock <= 5;
+                const isLowStock = p.stock > 0 && p.stock <= (Number(p.minStock) || 0);
 
                 let badge = '';
                 if (isOutOfStock) {
@@ -1232,7 +1266,11 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                 total: grandTotal,
                 paymentMethod: selectedPayment,
                 paidAmount: cashReceived,
-                change: change
+                change: change,
+                refundAmount: 0,
+                refundItems: [],
+                refundReason: '',
+                status: 'completed'
             };
 
             // SYNC WITH SUPABASE IF CONNECTED
@@ -1256,7 +1294,10 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                         total: grandTotal,
                         payment_method: selectedPayment,
                         paid_amount: cashReceived,
-                        change: change
+                        change: change,
+                        refund_amount: 0,
+                        refund_items: [],
+                        status: 'completed'
                     });
 
                 } catch (err) {
@@ -1297,13 +1338,13 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             });
 
             document.getElementById('stat-total-products').innerText = products.length;
-            document.getElementById('stat-low-stock').innerText = products.filter(p => p.stock > 0 && p.stock <= 5).length;
+            document.getElementById('stat-low-stock').innerText = products.filter(p => p.stock > 0 && p.stock <= (Number(p.minStock) || 0)).length;
             document.getElementById('stat-out-stock').innerText = products.filter(p => p.stock === 0).length;
 
             if (filtered.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="py-8 text-center text-slate-400">
+                        <td colspan="7" class="py-8 text-center text-slate-400">
                             Tidak ada produk ditemukan
                         </td>
                     </tr>
@@ -1315,7 +1356,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                 let stockStatusBadge = '';
                 if (p.stock === 0) {
                     stockStatusBadge = `<span class="px-2.5 py-1 bg-rose-100 text-rose-700 font-bold text-[11px] rounded-full">Habis (0)</span>`;
-                } else if (p.stock <= 5) {
+                } else if (p.stock <= (Number(p.minStock) || 0)) {
                     stockStatusBadge = `<span class="px-2.5 py-1 bg-amber-100 text-amber-700 font-bold text-[11px] rounded-full">Menipis (${p.stock})</span>`;
                 } else {
                     stockStatusBadge = `<span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 font-bold text-[11px] rounded-full">Aman (${p.stock})</span>`;
@@ -1337,10 +1378,11 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                         <td class="py-3 px-4 text-xs font-medium text-slate-600">${p.category}</td>
                         <td class="py-3 px-4 text-xs font-semibold text-slate-600">${formatRp(p.buyPrice)}</td>
                         <td class="py-3 px-4 text-xs font-bold text-slate-800">${formatRp(p.sellPrice)}</td>
+                        <td class="py-3 px-4 text-xs font-bold text-slate-600">${Number(p.minStock) || 0}</td>
                         <td class="py-3 px-4">${stockStatusBadge}</td>
                         <td class="py-3 px-4 text-center">
                             <div class="flex items-center justify-center space-x-2">
-                                <button onclick="quickAdjustStock(${p.id}, 5)" title="Tambah 5 Stok" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">+5</button>
+                                <button onclick="openStockAdjustModal(${p.id})" title="Atur Stok" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-boxes-stacked"></i></button>
                                 <button onclick="openEditProductModal(${p.id})" title="Edit Produk" class="p-1.5 text-brand-600 hover:bg-brand-50 rounded-lg text-xs transition"><i class="fa-solid fa-pen-to-square"></i></button>
                                 <button onclick="deleteProduct(${p.id})" title="Hapus Produk" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs transition"><i class="fa-solid fa-trash-can"></i></button>
                             </div>
@@ -1348,6 +1390,67 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                     </tr>
                 `;
             }).join('');
+        }
+
+        let stockAdjustMode = 'add';
+        let activeDetailTransactionId = null;
+
+        function openStockAdjustModal(id) {
+            const product = products.find(p => Number(p.id) === Number(id));
+            if (!product) return showToast('Produk tidak ditemukan.', 'danger');
+            document.getElementById('stock-adjust-id').value = product.id;
+            document.getElementById('stock-adjust-qty').value = '1';
+            document.getElementById('stock-adjust-reason').value = '';
+            document.getElementById('stock-adjust-product').innerText = `${product.name} • Stok saat ini: ${product.stock}`;
+            setStockAdjustMode('add');
+            document.getElementById('modal-stock-adjust').classList.remove('hidden');
+            updateStockAdjustPreview();
+        }
+
+        function closeStockAdjustModal() { document.getElementById('modal-stock-adjust').classList.add('hidden'); }
+
+        function setStockAdjustMode(mode) {
+            stockAdjustMode = mode;
+            document.getElementById('stock-adjust-mode').value = mode;
+            const add = document.getElementById('stock-add-btn');
+            const remove = document.getElementById('stock-remove-btn');
+            add.className = mode === 'add' ? 'py-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-700 font-bold' : 'py-3 rounded-xl border-2 border-slate-200 bg-white text-slate-600 font-bold';
+            remove.className = mode === 'remove' ? 'py-3 rounded-xl border-2 border-rose-500 bg-rose-50 text-rose-700 font-bold' : 'py-3 rounded-xl border-2 border-slate-200 bg-white text-slate-600 font-bold';
+            updateStockAdjustPreview();
+        }
+
+        function updateStockAdjustPreview() {
+            const id = Number(document.getElementById('stock-adjust-id').value);
+            const product = products.find(p => Number(p.id) === id);
+            const qty = Math.max(0, Number(document.getElementById('stock-adjust-qty').value) || 0);
+            if (!product) return;
+            const next = stockAdjustMode === 'add' ? product.stock + qty : Math.max(0, product.stock - qty);
+            document.getElementById('stock-adjust-preview').innerHTML = `Stok: <strong>${product.stock}</strong> → <strong class="${stockAdjustMode === 'add' ? 'text-emerald-600' : 'text-rose-600'}">${next}</strong>`;
+        }
+
+        async function submitStockAdjustment(e) {
+            e.preventDefault();
+            const id = Number(document.getElementById('stock-adjust-id').value);
+            const product = products.find(p => Number(p.id) === id);
+            const qty = Math.floor(Number(document.getElementById('stock-adjust-qty').value));
+            const reason = document.getElementById('stock-adjust-reason').value.trim() || (stockAdjustMode === 'add' ? 'Restock' : 'Penyesuaian stok');
+            if (!product || !Number.isInteger(qty) || qty < 1) return showToast('Jumlah stok tidak valid.', 'danger');
+            const before = Number(product.stock) || 0;
+            const delta = stockAdjustMode === 'add' ? qty : -qty;
+            const after = Math.max(0, before + delta);
+            if (stockAdjustMode === 'remove' && qty > before) return showToast('Stok tidak boleh kurang dari 0.', 'danger');
+            try {
+                if (isSupabaseConnected && supabaseClient) {
+                    const { error } = await supabaseClient.from('products').update({ stock: after }).eq('id', id);
+                    if (error) throw error;
+                    const user = window.Clerk?.user;
+                    const { error: moveError } = await supabaseClient.from('stock_movements').insert({ product_id: id, product_name: product.name, change_qty: delta, stock_before: before, stock_after: after, movement_type: stockAdjustMode === 'add' ? 'restock' : 'adjustment', reason, user_id: user?.id || null, user_name: user ? ([user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || user.primaryEmailAddress?.emailAddress || 'User') : 'User' });
+                    if (moveError) console.warn('Stock movement tidak tercatat:', moveError);
+                }
+                product.stock = after;
+                renderInventoryTable(); renderPosProducts(); updateLowStockBadge(); closeStockAdjustModal();
+                showToast(`${product.name}: stok ${delta > 0 ? 'bertambah' : 'berkurang'} ${Math.abs(delta)}`);
+            } catch (err) { showToast(`Gagal memperbarui stok: ${err.message || err}`, 'danger'); }
         }
 
         async function quickAdjustStock(id, delta) {
@@ -1394,7 +1497,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
         }
 
         function updateLowStockBadge() {
-            const lowStockCount = products.filter(p => p.stock <= 5).length;
+            const lowStockCount = products.filter(p => p.stock <= (Number(p.minStock) || 0)).length;
             const badge = document.getElementById('low-stock-badge');
             if (lowStockCount > 0) {
                 badge.innerText = lowStockCount;
@@ -1408,23 +1511,33 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             document.getElementById('modal-product-title').innerText = 'Tambah Produk Baru';
             document.getElementById('form-product').reset();
             document.getElementById('prod-id').value = '';
+            document.getElementById('prod-category').value = 'Minuman';
+            document.getElementById('prod-stock').value = '0';
+            document.getElementById('prod-min-stock').value = '5';
             document.getElementById('modal-product').classList.remove('hidden');
+            setTimeout(() => document.getElementById('prod-name').focus(), 50);
         }
 
         function openEditProductModal(id) {
-            const p = products.find(item => item.id === id);
-            if (!p) return;
+            const productId = Number(id);
+            const p = products.find(item => Number(item.id) === productId);
+            if (!p) {
+                showToast('Produk tidak ditemukan.', 'danger');
+                return;
+            }
 
             document.getElementById('modal-product-title').innerText = 'Edit Produk';
-            document.getElementById('prod-id').value = p.id;
-            document.getElementById('prod-name').value = p.name;
-            document.getElementById('prod-category').value = p.category;
-            document.getElementById('prod-sku').value = p.sku;
-            document.getElementById('prod-buy-price').value = p.buyPrice;
-            document.getElementById('prod-sell-price').value = p.sellPrice;
-            document.getElementById('prod-stock').value = p.stock;
+            document.getElementById('prod-id').value = String(p.id);
+            document.getElementById('prod-name').value = p.name || '';
+            document.getElementById('prod-category').value = p.category || 'Minuman';
+            document.getElementById('prod-sku').value = p.sku || '';
+            document.getElementById('prod-buy-price').value = Number(p.buyPrice || 0);
+            document.getElementById('prod-sell-price').value = Number(p.sellPrice || 0);
+            document.getElementById('prod-stock').value = Number(p.stock || 0);
+            document.getElementById('prod-min-stock').value = Number(p.minStock ?? 5);
 
             document.getElementById('modal-product').classList.remove('hidden');
+            setTimeout(() => document.getElementById('prod-name').focus(), 50);
         }
 
         function closeProductModal() {
@@ -1447,41 +1560,6 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             return sku;
         }
 
-        function openAddProductModal() {
-            document.getElementById('modal-product-title').innerText = 'Tambah Produk Baru';
-            document.getElementById('form-product').reset();
-            document.getElementById('prod-id').value = '';
-            document.getElementById('prod-category').value = 'Minuman';
-            document.getElementById('prod-stock').value = '0';
-            document.getElementById('modal-product').classList.remove('hidden');
-            setTimeout(() => document.getElementById('prod-name').focus(), 50);
-        }
-
-        function openEditProductModal(id) {
-            const productId = Number(id);
-            const p = products.find(item => Number(item.id) === productId);
-            if (!p) {
-                showToast('Produk tidak ditemukan.', 'danger');
-                return;
-            }
-
-            document.getElementById('modal-product-title').innerText = 'Edit Produk';
-            document.getElementById('prod-id').value = String(p.id);
-            document.getElementById('prod-name').value = p.name || '';
-            document.getElementById('prod-category').value = p.category || 'Minuman';
-            document.getElementById('prod-sku').value = p.sku || '';
-            document.getElementById('prod-buy-price').value = Number(p.buyPrice || 0);
-            document.getElementById('prod-sell-price').value = Number(p.sellPrice || 0);
-            document.getElementById('prod-stock').value = Number(p.stock || 0);
-
-            document.getElementById('modal-product').classList.remove('hidden');
-            setTimeout(() => document.getElementById('prod-name').focus(), 50);
-        }
-
-        function closeProductModal() {
-            document.getElementById('modal-product').classList.add('hidden');
-        }
-
         async function handleSaveProduct(e) {
             e.preventDefault();
 
@@ -1494,6 +1572,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             const buyPrice = Number(document.getElementById('prod-buy-price').value);
             const sellPrice = Number(document.getElementById('prod-sell-price').value);
             const stock = Number(document.getElementById('prod-stock').value);
+            const minStock = Number(document.getElementById('prod-min-stock').value);
 
             if (!name) {
                 showToast('Nama produk wajib diisi.', 'danger');
@@ -1515,6 +1594,10 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                 showToast('Stok harus berupa angka bulat 0 atau lebih.', 'danger');
                 return;
             }
+            if (!Number.isInteger(minStock) || minStock < 0) {
+                showToast('Batas minimum stok harus berupa angka bulat 0 atau lebih.', 'danger');
+                return;
+            }
 
             const normalizedSku = sku.toUpperCase();
             const duplicateSku = products.find(p =>
@@ -1533,6 +1616,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                 buy_price: buyPrice,
                 sell_price: sellPrice,
                 stock,
+                min_stock: minStock,
                 icon
             };
 
@@ -1582,6 +1666,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                         buyPrice: Number(savedProduct.buy_price || 0),
                         sellPrice: Number(savedProduct.sell_price || 0),
                         stock: Number(savedProduct.stock || 0),
+                        minStock: Number(savedProduct.min_stock ?? 5),
                         sku: savedProduct.sku || `SKU-${savedProduct.id}`,
                         icon: savedProduct.icon || 'fa-box'
                     };
@@ -1624,6 +1709,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                     buyPrice,
                     sellPrice,
                     stock,
+                    minStock,
                     icon
                 };
             } else {
@@ -1639,6 +1725,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                     buyPrice,
                     sellPrice,
                     stock,
+                    minStock,
                     icon
                 });
             }
@@ -1691,20 +1778,70 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             });
         }
 
+        function getMonthKey(date = new Date()) {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        function getMonthLabel(monthKey) {
+            const [year, month] = monthKey.split('-').map(Number);
+            return new Date(year, month - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+        }
+
+        function populateReportMonthSelect() {
+            const select = document.getElementById('report-month-select');
+            if (!select) return;
+
+            const now = new Date();
+            const options = [];
+            for (let i = 0; i < 24; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const key = getMonthKey(d);
+                options.push(`<option value="${key}">${getMonthLabel(key)}</option>`);
+            }
+            select.innerHTML = options.join('');
+            select.value = selectedReportMonth;
+        }
+
         function setReportPeriod(period) {
             currentReportPeriod = period;
+
+            if (period === 'previousMonth') {
+                const now = new Date();
+                selectedReportMonth = getMonthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+            } else if (period === 'month') {
+                selectedReportMonth = getMonthKey(new Date());
+            }
 
             document.querySelectorAll('.report-period-btn').forEach(btn => {
                 btn.classList.remove('bg-white', 'shadow-xs', 'text-brand-600', 'font-bold');
                 btn.classList.add('text-slate-600');
             });
 
-            const activeBtn = document.getElementById(`report-tab-${period}`);
+            const activeKey = period === 'previousMonth' ? 'previousMonth' : period;
+            const activeBtn = document.getElementById(`report-tab-${activeKey}`);
             if (activeBtn) {
                 activeBtn.classList.add('bg-white', 'shadow-xs', 'text-brand-600', 'font-bold');
                 activeBtn.classList.remove('text-slate-600');
             }
 
+            const monthSelect = document.getElementById('report-month-select');
+            if (monthSelect) monthSelect.value = selectedReportMonth;
+
+            renderReportsView();
+        }
+
+        function selectReportMonth(monthKey) {
+            if (!monthKey) return;
+            selectedReportMonth = monthKey;
+            currentReportPeriod = 'customMonth';
+
+            document.querySelectorAll('.report-period-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'shadow-xs', 'text-brand-600', 'font-bold');
+                btn.classList.add('text-slate-600');
+            });
+
+            const select = document.getElementById('report-month-select');
+            if (select) select.value = monthKey;
             renderReportsView();
         }
 
@@ -1712,18 +1849,18 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             const now = new Date();
             return transactions.filter(trx => {
                 const tDate = new Date(trx.timestamp);
-                if (period === 'today') {
-                    return tDate.toDateString() === now.toDateString();
-                } else if (period === 'month') {
-                    return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
-                } else if (period === 'year') {
+
+                if (period === 'year') {
                     return tDate.getFullYear() === now.getFullYear();
                 }
-                return true;
+
+                const key = selectedReportMonth;
+                return getMonthKey(tDate) === key;
             });
         }
 
         function renderReportsView() {
+            populateReportMonthSelect();
             const filteredTrx = filterTransactionsByPeriod(currentReportPeriod);
 
             let totalRevenue = 0;
@@ -1731,16 +1868,15 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             const productSalesMap = {};
 
             filteredTrx.forEach(trx => {
-                totalRevenue += trx.total;
-                trx.items.forEach(item => {
-                    const itemCost = (item.buyPrice || 0) * item.qty;
+                totalRevenue += Math.max(0, (Number(trx.total) || 0) - (Number(trx.refundAmount) || 0));
+                (trx.items || []).forEach(item => {
+                    const itemCost = (Number(item.buyPrice) || 0) * (Number(item.qty) || 0);
                     totalCost += itemCost;
-                    productSalesMap[item.name] = (productSalesMap[item.name] || 0) + item.qty;
+                    productSalesMap[item.name] = (productSalesMap[item.name] || 0) + (Number(item.qty) || 0);
                 });
             });
 
             const totalProfit = totalRevenue - totalCost;
-
             let topProduct = '-';
             let topQty = 0;
             Object.entries(productSalesMap).forEach(([name, qty]) => {
@@ -1756,9 +1892,13 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             document.getElementById('report-top-product').innerText = topProduct;
             document.getElementById('report-top-product-qty').innerText = `${topQty} unit terjual`;
 
-            const titleMap = { 'today': 'Hari Ini', 'month': 'Bulan Ini', 'year': 'Tahun Ini' };
-            document.getElementById('chart-period-title').innerText = titleMap[currentReportPeriod] || 'Hari Ini';
+            let chartTitle = 'Bulan Ini';
+            if (currentReportPeriod === 'previousMonth') chartTitle = getMonthLabel(selectedReportMonth);
+            else if (currentReportPeriod === 'customMonth') chartTitle = getMonthLabel(selectedReportMonth);
+            else if (currentReportPeriod === 'year') chartTitle = `Tahun ${new Date().getFullYear()}`;
+            else chartTitle = getMonthLabel(selectedReportMonth);
 
+            document.getElementById('chart-period-title').innerText = chartTitle;
             renderHistoryTable(filteredTrx);
             renderSalesChart(filteredTrx, currentReportPeriod);
         }
@@ -1793,7 +1933,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                                 ${trx.paymentMethod}
                             </span>
                         </td>
-                        <td class="py-3 px-4 text-xs font-bold text-slate-900">${formatRp(trx.total)}</td>
+                        <td class="py-3 px-4 text-xs font-bold ${Number(trx.refundAmount || 0) > 0 ? 'text-rose-600' : 'text-slate-900'}">${formatRp(Math.max(0, Number(trx.total) - Number(trx.refundAmount || 0)))}</td>
                         <td class="py-3 px-4 text-center">
                             <button onclick="openDetailModal('${trx.id}')" class="px-3 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand-600 text-slate-600 font-semibold text-xs rounded-lg transition">
                                 Detail
@@ -1805,52 +1945,50 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
         }
 
         function renderSalesChart(trxList, period) {
-            const ctx = document.getElementById('salesChart').getContext('2d');
+            const canvas = document.getElementById('salesChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
             if (salesChartInstance) salesChartInstance.destroy();
 
             let labels = [];
             let dataPoints = [];
 
-            if (period === 'today') {
-                labels = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
-                dataPoints = labels.map(l => {
-                    const hour = parseInt(l.split(':')[0]);
-                    return trxList.filter(t => new Date(t.timestamp).getHours() >= hour && new Date(t.timestamp).getHours() < hour + 2)
-                                  .reduce((s, t) => s + t.total, 0);
-                });
-            } else if (period === 'month') {
-                labels = Array.from({length: 15}, (_, i) => `Tgl ${(i + 1) * 2}`);
-                dataPoints = labels.map((_, idx) => {
-                    const day = (idx + 1) * 2;
-                    return trxList.filter(t => new Date(t.timestamp).getDate() === day)
-                                  .reduce((s, t) => s + t.total, 0);
-                });
+            if (period === 'year') {
+                const year = new Date().getFullYear();
+                labels = Array.from({ length: 12 }, (_, i) => new Date(year, i, 1).toLocaleDateString('id-ID', { month: 'short' }));
+                dataPoints = Array.from({ length: 12 }, (_, monthIdx) =>
+                    trxList.filter(t => new Date(t.timestamp).getMonth() === monthIdx)
+                        .reduce((sum, t) => sum + Math.max(0, (Number(t.total) || 0) - (Number(t.refundAmount) || 0)), 0)
+                );
             } else {
-                labels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-                dataPoints = labels.map((_, monthIdx) => {
-                    return trxList.filter(t => new Date(t.timestamp).getMonth() === monthIdx)
-                                  .reduce((s, t) => s + t.total, 0);
+                const [year, month] = selectedReportMonth.split('-').map(Number);
+                const daysInMonth = new Date(year, month, 0).getDate();
+                labels = Array.from({ length: daysInMonth }, (_, i) => String(i + 1));
+                dataPoints = labels.map(day => {
+                    const dayNum = Number(day);
+                    return trxList.filter(t => {
+                        const d = new Date(t.timestamp);
+                        return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === dayNum;
+                    }).reduce((sum, t) => sum + Math.max(0, (Number(t.total) || 0) - (Number(t.refundAmount) || 0)), 0);
                 });
             }
 
             salesChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels,
                     datasets: [{
                         label: 'Total Penjualan (Rp)',
                         data: dataPoints,
                         backgroundColor: '#0ea5e9',
-                        borderRadius: 8,
+                        borderRadius: 6,
                         hoverBackgroundColor: '#0284c7'
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
+                    plugins: { legend: { display: false } },
                     scales: {
                         y: {
                             beginAtZero: true,
@@ -1861,12 +1999,94 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                             grid: { color: '#f1f5f9' }
                         },
                         x: {
-                            ticks: { font: { size: 10 } },
+                            ticks: {
+                                font: { size: 9 },
+                                autoSkip: period === 'year' ? false : true,
+                                maxTicksLimit: period === 'year' ? 12 : 16
+                            },
                             grid: { display: false }
                         }
                     }
                 }
             });
+        }
+
+        function getRefundableQty(trx, itemId) {
+            const refunded = (trx.refundItems || []).find(x => Number(x.id) === Number(itemId));
+            return Math.max(0, (Number(refunded?.qty) || 0));
+        }
+
+        function openRefundModal(trxId) {
+            const trx = transactions.find(t => t.id === trxId);
+            if (!trx) return;
+            if (Number(trx.refundAmount || 0) >= Number(trx.total || 0)) return showToast('Transaksi ini sudah direfund penuh.', 'danger');
+            activeDetailTransactionId = trxId;
+            document.getElementById('refund-id').value = trxId;
+            document.getElementById('refund-trx-id').innerText = trxId;
+            document.getElementById('refund-reason').value = '';
+            document.getElementById('refund-items').innerHTML = trx.items.map((item, idx) => {
+                const already = getRefundableQty(trx, item.id);
+                const remaining = Math.max(0, Number(item.qty) - already);
+                return `<div class="border border-slate-200 rounded-xl p-3"><div class="flex justify-between items-center gap-3"><div><div class="font-semibold text-sm text-slate-800">${item.name}</div><div class="text-[11px] text-slate-400">${formatRp(item.price)} × ${remaining} tersisa</div></div><input data-refund-index="${idx}" data-max="${remaining}" type="number" min="0" max="${remaining}" value="0" class="refund-qty w-24 px-3 py-2 border border-slate-200 rounded-lg text-center font-bold" oninput="updateRefundTotal()"></div></div>`;
+            }).join('');
+            updateRefundTotal();
+            document.getElementById('modal-refund').classList.remove('hidden');
+        }
+
+        function openRefundModalFromDetail() { if (activeDetailTransactionId) { closeDetailModal(); openRefundModal(activeDetailTransactionId); } }
+        function closeRefundModal() { document.getElementById('modal-refund').classList.add('hidden'); }
+
+        function updateRefundTotal() {
+            const trx = transactions.find(t => t.id === document.getElementById('refund-id').value);
+            if (!trx) return;
+            let total = 0;
+            document.querySelectorAll('.refund-qty').forEach((el, idx) => total += (Number(el.value) || 0) * (Number(trx.items[idx].price) || 0));
+            document.getElementById('refund-total').innerHTML = `<span>Total refund</span><span>${formatRp(total)}</span>`;
+        }
+
+        async function submitRefund(e) {
+            e.preventDefault();
+            const trx = transactions.find(t => t.id === document.getElementById('refund-id').value);
+            if (!trx) return;
+            const selected = [...document.querySelectorAll('.refund-qty')].map((el, idx) => ({ index: idx, qty: Math.floor(Number(el.value) || 0), max: Number(el.dataset.max) || 0 })).filter(x => x.qty > 0);
+            if (!selected.length) return showToast('Pilih minimal satu item untuk direfund.', 'danger');
+            const refundItems = selected.map(x => ({ id: trx.items[x.index].id, name: trx.items[x.index].name, qty: x.qty, price: trx.items[x.index].price }));
+            const refundAmount = refundItems.reduce((s, x) => s + x.qty * Number(x.price || 0), 0);
+            const newRefundAmount = Number(trx.refundAmount || 0) + refundAmount;
+            if (newRefundAmount > Number(trx.total || 0)) return showToast('Jumlah refund melebihi nilai transaksi.', 'danger');
+            const reason = document.getElementById('refund-reason').value.trim();
+            const refundStockChanges = [];
+            try {
+                if (isSupabaseConnected && supabaseClient) {
+                    for (const ri of refundItems) {
+                        const product = products.find(p => Number(p.id) === Number(ri.id));
+                        if (product) {
+                            const before = Number(product.stock) || 0; const after = before + ri.qty;
+                            const { error } = await supabaseClient.from('products').update({ stock: after }).eq('id', product.id);
+                            if (error) throw error;
+                            refundStockChanges.push({ productId: product.id, before, after });
+                            const user = window.Clerk?.user;
+                            await supabaseClient.from('stock_movements').insert({ product_id: product.id, product_name: product.name, change_qty: ri.qty, stock_before: before, stock_after: after, movement_type: 'refund', reason: reason || `Refund ${trx.id}`, user_id: user?.id || null, user_name: user ? ([user.firstName, user.lastName].filter(Boolean).join(' ') || user.primaryEmailAddress?.emailAddress || 'User') : 'User' });
+                        }
+                    }
+                    const merged = [...(trx.refundItems || [])];
+                    refundItems.forEach(ri => { const found = merged.find(x => Number(x.id) === Number(ri.id)); if (found) found.qty += ri.qty; else merged.push({ ...ri }); });
+                    const user = window.Clerk?.user;
+                    const { error: trxError } = await supabaseClient.from('transactions').update({ refund_amount: newRefundAmount, refund_items: merged, refund_reason: reason, refunded_at: new Date().toISOString(), refunded_by: user?.id || null, status: newRefundAmount >= Number(trx.total || 0) ? 'refunded' : 'partially_refunded' }).eq('id', trx.id);
+                    if (trxError) throw trxError;
+                    trx.refundItems = merged;
+                }
+                refundItems.forEach(ri => { const p = products.find(x => Number(x.id) === Number(ri.id)); if (p) p.stock += ri.qty; });
+                trx.refundAmount = newRefundAmount; trx.refundReason = reason; trx.refundedAt = new Date(); trx.status = newRefundAmount >= Number(trx.total || 0) ? 'refunded' : 'partially_refunded';
+                closeRefundModal(); renderInventoryTable(); renderPosProducts(); updateLowStockBadge(); renderReportsView(); showToast(`Refund ${formatRp(refundAmount)} berhasil.`, 'success');
+            } catch (err) {
+                if (isSupabaseConnected && supabaseClient && refundStockChanges.length) {
+                    for (const change of refundStockChanges.reverse()) {
+                        try { await supabaseClient.from('products').update({ stock: change.before }).eq('id', change.productId); } catch (_) {}
+                    }
+                }
+                showToast(`Gagal memproses refund: ${err.message || err}`, 'danger');
+            }
         }
 
         function openReceiptModal(trx) {
@@ -1937,6 +2157,7 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
                         <span>Total Penjualan:</span>
                         <span class="text-brand-600">${formatRp(trx.total)}</span>
                     </div>
+                    ${Number(trx.refundAmount || 0) > 0 ? `<div class="flex justify-between text-rose-600 font-semibold pt-1"><span>Refund:</span><span>- ${formatRp(trx.refundAmount)}</span></div><div class="flex justify-between font-bold pt-1"><span>Net:</span><span>${formatRp(Math.max(0, Number(trx.total) - Number(trx.refundAmount || 0)))}</span></div>` : ''}
                 </div>
 
                 <div class="bg-blue-50/60 p-3 rounded-xl text-xs flex justify-between text-blue-900">
@@ -1990,13 +2211,43 @@ ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;</pre>
             });
         }
 
+        let deferredInstallPrompt = null;
+
+        function setupPWA() {
+            window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstallPrompt = e; document.getElementById('install-app-btn')?.classList.remove('hidden'); });
+            window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; document.getElementById('install-app-btn')?.classList.add('hidden'); showToast('POS Pro berhasil diinstall sebagai aplikasi.', 'success'); });
+            if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(err => console.warn('PWA service worker:', err));
+            document.getElementById('stock-adjust-qty')?.addEventListener('input', updateStockAdjustPreview);
+        }
+
+        async function installPWA() {
+            if (!deferredInstallPrompt) { showToast('Gunakan menu browser "Install app" atau "Tambahkan ke layar utama" jika tombol install belum tersedia.', 'info'); return; }
+            deferredInstallPrompt.prompt(); await deferredInstallPrompt.userChoice; deferredInstallPrompt = null;
+        }
+
+        async function initClerkAuth() {
+            const gate = document.getElementById('auth-gate');
+            const shell = document.getElementById('pos-app-shell');
+            const signIn = document.getElementById('clerk-sign-in');
+            try {
+                if (!window.Clerk) throw new Error('ClerkJS belum termuat');
+                await Clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor }, appearance: { variables: { colorPrimary: '#0284c7' } } });
+                const showApp = () => {
+                    if (!Clerk.isSignedIn) return;
+                    gate.classList.add('hidden'); shell.classList.remove('hidden'); shell.classList.add('flex');
+                    const userDiv = document.getElementById('clerk-user-button');
+                    if (userDiv && !userDiv.dataset.mounted) { Clerk.mountUserButton(userDiv); userDiv.dataset.mounted = '1'; }
+                    initSupabaseClient(); renderPosProducts(); renderCart(); renderInventoryTable(); renderReportsView(); setupPWA();
+                };
+                if (Clerk.isSignedIn) { showApp(); } else { Clerk.mountSignIn(signIn); gate.classList.remove('hidden'); }
+                Clerk.addListener(({ user }) => { if (user) showApp(); else { shell.classList.add('hidden'); shell.classList.remove('flex'); gate.classList.remove('hidden'); } });
+            } catch (err) { console.error('Clerk init error:', err); document.getElementById('clerk-load-error').classList.remove('hidden'); }
+        }
+
         window.onload = function () {
-            initSupabaseClient();
-            renderPosProducts();
-            renderCart();
-            renderInventoryTable();
-            renderReportsView();
+            initClerkAuth();
         }
     </script>
+    </div>
 </body>
 </html>
