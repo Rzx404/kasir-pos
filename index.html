@@ -854,6 +854,57 @@ ALTER TABLE stores DISABLE ROW LEVEL SECURITY;</pre>
             localStorage.setItem(STORE_SETTINGS_KEY, JSON.stringify(storeSettings));
         }
 
+        async function saveStoreSettingsToSupabase() {
+            if (!supabaseClient) {
+                throw new Error('Supabase belum terhubung.');
+            }
+
+            const payload = {
+                store_id: storeSettings.storeId,
+                name: storeSettings.name,
+                logo: storeSettings.logo || null,
+                address: storeSettings.address || null,
+                phone: storeSettings.phone || null,
+                receipt_name: storeSettings.receiptName || storeSettings.name,
+                currency: storeSettings.currency || 'IDR'
+            };
+
+            const { error } = await supabaseClient
+                .from('stores')
+                .upsert(payload, { onConflict: 'store_id' });
+
+            if (error) throw error;
+        }
+
+        async function loadStoreSettingsFromSupabase() {
+            if (!supabaseClient || !storeSettings?.storeId) return;
+
+            const { data, error } = await supabaseClient
+                .from('stores')
+                .select('*')
+                .eq('store_id', storeSettings.storeId)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (data) {
+                storeSettings = {
+                    ...storeSettings,
+                    storeId: data.store_id || storeSettings.storeId,
+                    name: data.name || storeSettings.name,
+                    logo: data.logo || '',
+                    address: data.address || '',
+                    phone: data.phone || '',
+                    receiptName: data.receipt_name || data.name || storeSettings.name,
+                    currency: data.currency || 'IDR'
+                };
+                saveStoreSettingsToLocal();
+                updateStoreIdentityUI();
+            } else {
+                await saveStoreSettingsToSupabase();
+            }
+        }
+
         function updateStoreIdentityUI() {
             const name = storeSettings.name || 'Toko Saya';
             const id = storeSettings.storeId || 'TOKO-XXXXXX';
@@ -951,7 +1002,7 @@ ALTER TABLE stores DISABLE ROW LEVEL SECURITY;</pre>
 
             const file = document.getElementById('store-logo-file').files?.[0];
 
-            const finishSave = (logoData = storeSettings.logo || '') => {
+            const finishSave = async (logoData = storeSettings.logo || '') => {
                 storeSettings = {
                     ...storeSettings,
                     name,
@@ -964,8 +1015,15 @@ ALTER TABLE stores DISABLE ROW LEVEL SECURITY;</pre>
                 // Store ID is intentionally never read from an editable input.
                 saveStoreSettingsToLocal();
                 updateStoreIdentityUI();
-                closeStoreSettings();
-                showToast(`Pengaturan ${name} berhasil disimpan.`);
+
+                try {
+                    await saveStoreSettingsToSupabase();
+                    closeStoreSettings();
+                    showToast(`Pengaturan ${name} berhasil disimpan ke database.`);
+                } catch (err) {
+                    console.error('Gagal menyimpan pengaturan toko ke Supabase:', err);
+                    showToast(`Gagal menyimpan ke database: ${err.message || err}`, 'danger');
+                }
             };
 
             if (file) {
@@ -1055,6 +1113,9 @@ ALTER TABLE stores DISABLE ROW LEVEL SECURITY;</pre>
         }
 
         transactions = generateInitialHistory();
+
+        const SUPABASE_URL = 'https://orworrcsotkvprfpztei.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9yd29ycmNzb3RrdnByZnB6dGVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NDc5MDYsImV4cCI6MjEwMjAyMzkwNn0.1vpGqncLSlShTe0NLpV9IdfbISA9DL-3YJ9QdJ9n3IE';
 
         function initSupabaseClient() {
             const url = localStorage.getItem('POS_SUPABASE_URL');
@@ -2103,10 +2164,18 @@ ALTER TABLE stores DISABLE ROW LEVEL SECURITY;</pre>
             });
         }
 
-        window.onload = function () {
+        window.onload = async function () {
             storeSettings = loadStoreSettings();
             updateStoreIdentityUI();
             initSupabaseClient();
+
+            try {
+                await loadStoreSettingsFromSupabase();
+            } catch (err) {
+                console.warn('Pengaturan toko belum bisa dimuat dari Supabase:', err);
+                showToast('Data toko belum tersinkron ke database. Cek tabel stores di Supabase.', 'danger');
+            }
+
             renderPosProducts();
             renderCart();
             renderInventoryTable();
