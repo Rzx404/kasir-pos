@@ -1,0 +1,5 @@
+const CACHE_NAME="kasirku-pwa-v1";
+const SHELL=["./","./index.html","./manifest.json","https://cdn.tailwindcss.com","https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css","https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap","https://cdn.jsdelivr.net/npm/chart.js","https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"];
+self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE_NAME).then(async c=>{for(const u of SHELL){try{await c.add(u)}catch(_){}}}).then(()=>self.skipWaiting())));
+self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener("fetch",e=>{if(e.request.method!=="GET")return;e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{if(r&&r.ok)caches.open(CACHE_NAME).then(x=>x.put(e.request,r.clone()));return r}).catch(()=>e.request.mode==="navigate"?caches.match("./index.html"):new Response("",{status:503})))});
