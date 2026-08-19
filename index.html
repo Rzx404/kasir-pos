@@ -651,8 +651,15 @@
                             <i class="fa-solid fa-copy"></i>
                         </button>
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-1">ID dibuat otomatis dan tidak berubah walaupun nama toko diganti.</p>
-                    <button type="button" onclick="closeStoreSettings(); openConnectStore()" class="mt-2 text-xs font-bold text-brand-600 hover:text-brand-700"><i class="fa-solid fa-link mr-1"></i> Hubungkan perangkat lain ke toko ini</button>
+                    <p class="text-[10px] text-slate-400 mt-1">Store ID saat ini adalah identitas toko yang sedang terhubung. ID tidak diubah saat nama toko diganti.</p>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <button type="button" onclick="copyStoreId()" class="text-xs font-bold text-slate-600 hover:text-slate-800 px-3 py-2 rounded-lg bg-slate-100">
+                            <i class="fa-solid fa-copy mr-1"></i> Salin ID
+                        </button>
+                        <button type="button" onclick="switchStoreFromSettings()" class="text-xs font-bold text-brand-600 hover:text-brand-700 px-3 py-2 rounded-lg bg-brand-50">
+                            <i class="fa-solid fa-right-left mr-1"></i> Ganti / Hubungkan Store ID
+                        </button>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1096,6 +1103,11 @@ ALTER TABLE stores DISABLE ROW LEVEL SECURITY;</pre>
                 console.error('Gagal menghubungkan Store ID:', err);
                 showToast(`Gagal menghubungkan: ${err.message || err}`, 'danger');
             }
+        }
+
+        function switchStoreFromSettings() {
+            closeStoreSettings();
+            openConnectStore();
         }
 
         function openConnectStore() {
